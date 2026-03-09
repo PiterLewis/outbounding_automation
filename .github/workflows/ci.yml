@@ -21,4 +21,4 @@ jobs:
         
     - name: Build and Lint with Docker Compose
       run: |
-        docker-compose build
+        docker compose build
