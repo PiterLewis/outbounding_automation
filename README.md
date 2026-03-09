@@ -2,7 +2,7 @@
 
 Este documento establece las reglas del juego para todo el equipo (Frontend y Backend). Para mantener el repositorio limpio, organizado y evitar conflictos dolorosos, seguiremos este estándar de ramas y Pull Requests.
 
-## 🌳 Arquitectura de Ramas
+## Arquitectura de Ramas
 
 Tenemos las siguientes ramas principales protegidas:
 - `main`: Es la rama de **Producción**. El código aquí siempre debe funcionar. Las fusiones a `main` requieren aprobación previa mediante Pull Request (PR) y que el pipeline de Docker CI pase en verde.
@@ -27,7 +27,7 @@ git pull origin development
 git checkout -b feat/front-login-ui
 ```
 
-## 🔄 Cómo integrar tu código (Pull Requests)
+## Cómo integrar tu código (Pull Requests)
 
 Una vez terminas tu tarea en tu rama `feat/front-login-ui`:
 1. Haz tus commits: `git commit -m "feat(front): añado pantalla de login"`
@@ -36,7 +36,7 @@ Una vez terminas tu tarea en tu rama `feat/front-login-ui`:
 
 > **Importante:** Tu código pasará por un bot (GitHub Actions). Si rompiste alguna dependencia o el linter llora, tu PR será bloqueado hasta que lo arregles.
 
-## ⚔️ Cómo resolver Conflictos de Merge
+## Cómo resolver Conflictos de Merge
 
 Si tú y otro compañero tocaron el mismo archivo (por ejemplo el `package.json` o un componente común), GitHub te dirá que hay conflictos y no te dejará hacer merge del PR. **No entres en pánico, no pasa nada**.
 
