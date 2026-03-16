@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { runVipUpsellChain } from "../ai/chains/vip_upsell.js";
+import { runLastMinuteChain } from "../ai/chains/last_minute.js";
+import { runAgeFacebookChain } from "../ai/chains/facebook_campaign.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,22 +30,23 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
 
     switch (cleanDecision) {
         case 'low_sales_discount':
-            // Llamamos a nuestro nuevo archivo especialista
             resultDraft = await runLowSalesChain(eventId);
-            break;
-
-        // Aquí irán las otras cadenas en el futuro:
-        case 'age_facebook_campaign':
-            console.log("Aún no implementado.");
             break;
 
         case 'vip_upsell':
             resultDraft = await runVipUpsellChain(eventId);
             break;
 
+        case 'last_minute_push':
+            resultDraft = await runLastMinuteChain(eventId);
+            break;
+
+        case 'age_facebook_campaign': // <-- DEJA SOLO ESTE
+            resultDraft = await runAgeFacebookChain(eventId);
+            break;
+
         default:
             console.log(`⚠️ Cadena desconocida o genérica: ${cleanDecision}`);
-            // Fallback: Lógica genérica o error
             break;
     }
 
