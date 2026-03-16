@@ -33,8 +33,8 @@ export const aiRouter = routerPrompt.pipe(llm).pipe(new StringOutputParser());
 
 // Función auxiliar para testearlo rápido
 export async function testRouter(actionText) {
-    console.log(`🧠 Router analizando: "${actionText}"...`);
+    console.log(` Router analizando: "${actionText}"...`);
     const decision = await aiRouter.invoke({ action: actionText });
-    console.log(`🎯 Decisión del LLM: ${decision}`);
+    console.log(` Decisión del LLM: ${decision}`);
     return decision;
 }

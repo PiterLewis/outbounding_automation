@@ -11,7 +11,7 @@ const llm = new ChatOpenAI({
 });
 
 export async function runLowSalesChain(eventId) {
-    console.log(`\n📉 [Chain: Low Sales] Iniciando rescate para el evento ${eventId}...`);
+    console.log(`\n [Chain: Low Sales] Iniciando rescate para el evento ${eventId}...`);
 
     // 1. CONTEXTO DE BD: Buscamos usuarios interesados que no hayan recibido descuento 
     const targetUsers = await User.find({
@@ -19,7 +19,7 @@ export async function runLowSalesChain(eventId) {
         notifiedDiscount: { $ne: eventId }
     });
     const audienceCount = targetUsers.length;
-    console.log(`👥 Usuarios objetivo encontrados en Mongo: ${audienceCount}`);
+    console.log(` Usuarios objetivo encontrados en Mongo: ${audienceCount}`);
 
     // Simulación de datos de Eventbrite (Métricas) [cite: 136, 137]
     const pctSold = "40%";
@@ -40,7 +40,7 @@ export async function runLowSalesChain(eventId) {
     `);
 
     // Ejecutamos la cadena
-    console.log(`✍️  LLM redactando el correo persuasivo...`);
+    console.log(`LLM redactando el correo persuasivo...`);
     const result = await prompt.pipe(llm).invoke({
         eventId,
         pctSold,
@@ -54,11 +54,11 @@ export async function runLowSalesChain(eventId) {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log("⚠️ Error parseando JSON, se usará texto plano.");
+        console.log(" Error parseando JSON, se usará texto plano.");
     }
 
     // 3. HUMAN IN THE LOOP: Guardar borrador en MongoDB
-    console.log(`💾 Guardando borrador en la Base de Datos...`);
+    console.log(` Guardando borrador en la Base de Datos...`);
     const draft = await Draft.create({
         eventId: eventId,
         chainUsed: 'low_sales_discount',
@@ -70,6 +70,6 @@ export async function runLowSalesChain(eventId) {
         metadata: { discountCode } // Guardamos el código para cuando se envíe de verdad
     });
 
-    console.log(`✅ [Chain: Low Sales] Borrador generado (ID: ${draft._id}).`);
+    console.log(` [Chain: Low Sales] Borrador generado (ID: ${draft._id}).`);
     return draft;
 }

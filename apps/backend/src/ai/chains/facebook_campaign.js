@@ -10,7 +10,7 @@ const llm = new ChatOpenAI({
 });
 
 export async function runAgeFacebookChain(eventId) {
-    console.log(`\n📱 [Chain: Social Media] Analizando demografía para la campaña de ${eventId}...`);
+    console.log(`\n [Chain: Social Media] Analizando demografía para la campaña de ${eventId}...`);
 
     // 1. CONTEXTO BD: Calcular media de edad y ciudad principal [cite: 198-206]
     // Buscamos a los asistentes del organizador y calculamos la media
@@ -31,8 +31,8 @@ export async function runAgeFacebookChain(eventId) {
 
     // 2. LÓGICA DE NEGOCIO: Decidir el canal [cite: 190, 209-211]
     const channel = avgAge < 30 ? 'Instagram' : 'Facebook';
-    console.log(`📊 Demografía: Edad media ${avgAge} años en ${topCity}.`);
-    console.log(`🎯 Canal seleccionado por el algoritmo: ${channel}`);
+    console.log(` Demografía: Edad media ${avgAge} años en ${topCity}.`);
+    console.log(` Canal seleccionado por el algoritmo: ${channel}`);
 
     const discountCode = `SOCIAL-${eventId.slice(-4).toUpperCase()}`;
 
@@ -49,7 +49,7 @@ export async function runAgeFacebookChain(eventId) {
         {{"subject": "Copy del Post", "body": "El texto para publicar en la red social"}}
     `);
 
-    console.log(`✍️  LLM redactando el post para ${channel}...`);
+    console.log(`LLM redactando el post para ${channel}...`);
     const result = await prompt.pipe(llm).invoke({
         channel,
         eventId,
@@ -63,11 +63,11 @@ export async function runAgeFacebookChain(eventId) {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log("⚠️ Error parseando JSON, se usará texto plano.");
+        console.log("Error parseando JSON, se usará texto plano.");
     }
 
     // 4. HUMAN IN THE LOOP: Guardar borrador para aprobación [cite: 193]
-    console.log(`💾 Guardando propuesta de Post en la BD...`);
+    console.log(`Guardando propuesta de Post en la BD...`);
     const draft = await Draft.create({
         eventId: eventId,
         chainUsed: 'age_facebook_campaign',
@@ -79,6 +79,6 @@ export async function runAgeFacebookChain(eventId) {
         metadata: { channel: channel, targetAge: avgAge, topCity: topCity }
     });
 
-    console.log(`✅ [Chain: Social Media] Post generado (ID: ${draft._id}).`);
+    console.log(`[Chain: Social Media] Post generado (ID: ${draft._id}).`);
     return draft;
 }

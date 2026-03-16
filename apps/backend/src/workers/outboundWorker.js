@@ -16,14 +16,14 @@ dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
 
 export const outboundWorker = new Worker('outbounding', async (job) => {
-    console.log(`\n🤖 [Worker] Iniciando Job ${job.id}`);
+    console.log(`\n[Worker] Iniciando Job ${job.id}`);
     const { eventId, prompt } = job.data;
 
     // PASO 1: EL ROUTER DECIDE
-    console.log(`🧠 Consultando al Router de IA...`);
+    console.log(` Consultando al Router de IA...`);
     const chainDecision = await aiRouter.invoke({ action: prompt });
     const cleanDecision = chainDecision.trim();
-    console.log(`🎯 Decisión del Router: ${cleanDecision}`);
+    console.log(` Decisión del Router: ${cleanDecision}`);
 
     // PASO 2: EJECUTAR LA CADENA ESPECIALIZADA
     let resultDraft;
@@ -41,12 +41,12 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
             resultDraft = await runLastMinuteChain(eventId);
             break;
 
-        case 'age_facebook_campaign': // <-- DEJA SOLO ESTE
+        case 'age_facebook_campaign':
             resultDraft = await runAgeFacebookChain(eventId);
             break;
 
         default:
-            console.log(`⚠️ Cadena desconocida o genérica: ${cleanDecision}`);
+            console.log(` Cadena desconocida o genérica: ${cleanDecision}`);
             break;
     }
 

@@ -8,13 +8,13 @@ const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/eventbrit
 async function seedDatabase() {
     try {
         await mongoose.connect(mongoURI);
-        console.log('📦 Conectado a MongoDB. Limpiando datos antiguos...');
+        console.log(' Conectado a MongoDB. Limpiando datos antiguos...');
 
         await User.deleteMany({});
         await Attendee.deleteMany({});
         await Draft.deleteMany({});
 
-        console.log('🌱 Sembrando usuarios falsos...');
+        console.log('Sembrando usuarios falsos...');
 
         // 1. Usuarios normales (Interesados en nuestro evento fatal EVT-999)
         const users = await User.insertMany([
@@ -23,7 +23,7 @@ async function seedDatabase() {
             { email: 'lucia@ejemplo.com', name: 'Lucía', age: 22, city: 'Valencia', interestedEvents: ['EVT-999'] }
         ]);
 
-        console.log('🌟 Sembrando asistentes e historial VIP...');
+        console.log(' Sembrando asistentes e historial VIP...');
 
         // 2. Asistente VIP (Ha ido a 3 eventos de nuestro organizador)
         await Attendee.insertMany([
@@ -46,10 +46,10 @@ async function seedDatabase() {
             }
         ]);
 
-        console.log('✅ ¡Base de datos poblada con éxito!');
+        console.log(' ¡Base de datos poblada con éxito!');
         process.exit(0);
     } catch (error) {
-        console.error('❌ Error sembrando:', error);
+        console.error(' Error sembrando:', error);
         process.exit(1);
     }
 }

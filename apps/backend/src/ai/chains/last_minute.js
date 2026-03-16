@@ -10,7 +10,7 @@ const llm = new ChatOpenAI({
 });
 
 export async function runLastMinuteChain(eventId) {
-    console.log(`\n⏳ [Chain: Last Minute] Iniciando aviso de última hora para ${eventId}...`);
+    console.log(`\n[Chain: Last Minute] Iniciando aviso de última hora para ${eventId}...`);
 
     // 1. CONTEXTO BD: Buscar usuarios en waitlist o que visitaron sin comprar.
     // Como en nuestro seed.js no pusimos a nadie en waitlist, usamos interestedEvents como fallback para la prueba.
@@ -23,7 +23,7 @@ export async function runLastMinuteChain(eventId) {
     });
 
     const audienceCount = targetUsers.length;
-    console.log(`👥 Usuarios en lista de espera/visitantes encontrados: ${audienceCount}`);
+    console.log(` Usuarios en lista de espera/visitantes encontrados: ${audienceCount}`);
 
     // Datos simulados del evento (Quedan 24h y 15 entradas)
     const hoursLeft = 24;
@@ -42,7 +42,7 @@ export async function runLastMinuteChain(eventId) {
         {{"subject": "SMS", "body": "El texto del SMS corto"}}
     `);
 
-    console.log(`✍️  LLM redactando SMS de urgencia sin exclamaciones...`);
+    console.log(`  LLM redactando SMS de urgencia sin exclamaciones...`);
     const result = await prompt.pipe(llm).invoke({
         hoursLeft,
         ticketsLeft,
@@ -54,11 +54,11 @@ export async function runLastMinuteChain(eventId) {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log("⚠️ Error parseando JSON, se usará texto plano.");
+        console.log(" Error parseando JSON, se usará texto plano.");
     }
 
     // 3. HUMAN IN THE LOOP: Guardar borrador en BD
-    console.log(`💾 Guardando borrador de SMS en la BD...`);
+    console.log(` Guardando borrador de SMS en la BD...`);
     const draft = await Draft.create({
         eventId: eventId,
         chainUsed: 'last_minute_push',
@@ -70,6 +70,6 @@ export async function runLastMinuteChain(eventId) {
         metadata: { channels: ['SMS', 'Push Notification'] }
     });
 
-    console.log(`✅ [Chain: Last Minute] Borrador SMS generado (ID: ${draft._id}).`);
+    console.log(`[Chain: Last Minute] Borrador SMS generado (ID: ${draft._id}).`);
     return draft;
 }
