@@ -1,8 +1,11 @@
-/* const express = require('express');
-const cors = require('cors');
-const { Worker, Queue } = require('bullmq');
-const Redis = require('ioredis');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import chatRoutes from './src/routes/routes.js';
+
+import './src/workers/outboundWorker.js';
+
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -10,41 +13,13 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-const redisOptions = {
-    maxRetriesPerRequest: null,
-};
-
-const connection = new Redis(process.env.REDIS_URL || 'redis://redis:6379', redisOptions);
-
-const outboundingQueue = new Queue('outbounding', { connection });
+app.use('/api', chatRoutes);
 
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', worker: 'running' });
-});
-
-app.post('/jobs', async (req, res) => {
-    const { data } = req.body;
-    const job = await outboundingQueue.add('task', data);
-    res.status(201).json({ jobId: job.id });
-});
-
-const worker = new Worker('outbounding', async job => {
-    console.log(`Processing job ${job.id} with data`, job.data);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { status: 'completed', result: 'Success' };
-}, { connection });
-
-worker.on('completed', job => {
-    console.log(`${job.id} has completed!`);
-});
-
-worker.on('failed', (job, err) => {
-    console.log(`${job.id} has failed with ${err.message}`);
+    res.status(200).json({ status: 'ok', architecture: 'Agentic Workflow Active' });
 });
 
 app.listen(port, () => {
-    console.log(`Backend listening on port ${port}`);
-    console.log(`BullMQ worker registered for "outbounding" queue`);
+    console.log(`Backend Express escuchando en el puerto ${port}`);
+    console.log(`Worker de LangChain (Cerebro) inicializado y esperando tareas...`);
 });
- */
-
