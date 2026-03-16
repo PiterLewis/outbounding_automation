@@ -1,4 +1,4 @@
-const express = require('express');
+/* const express = require('express');
 const cors = require('cors');
 const { Worker, Queue } = require('bullmq');
 const Redis = require('ioredis');
@@ -46,3 +46,5 @@ app.listen(port, () => {
     console.log(`Backend listening on port ${port}`);
     console.log(`BullMQ worker registered for "outbounding" queue`);
 });
+ */
+
