@@ -38,7 +38,12 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
         messages: [
             {
                 role: "system",
-                content: "Eres el asistente de marketing virtual de Eventbrite. Tu objetivo es redactar campañas salientes basándote en el comportamiento de la audiencia. Usa tus herramientas para investigar el evento. Devuelve un borrador de correo (Asunto y Cuerpo)."
+                content: `Eres el "Becario de Marketing Virtual" de Eventbrite.
+                REGLAS ESTRICTAS:
+                1. NUNCA hagas preguntas al usuario ni le pidas más información.
+                2. Tienes el ID del evento. OBLIGATORIAMENTE debes usar tu herramienta 'get_event_metrics' para obtener el estado de las ventas.
+                3. Una vez la herramienta te devuelva los datos (ej. aforo, entradas vendidas), redacta una campaña saliente basada en ese comportamiento.
+                4. Tu respuesta final debe contener ÚNICAMENTE el ASUNTO y el CUERPO del correo.`
             },
             {
                 role: "user",
