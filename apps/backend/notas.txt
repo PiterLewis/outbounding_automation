@@ -1,0 +1,38 @@
+Propuesta de Estructura de Directorios
+Te recomiendo crear una carpeta src/ dentro de apps/backend/ para separar responsabilidades. Esta estructura te preparará además para cuando queráis migrar a Nest.js (que es el framework obligatorio según el PRD ):
+
+📁 apps/backend/
+
+📁 src/
+
+📁 ai/ (Aquí vivirá tu "Cerebro" LangChain)
+
+📄 agent.js (El orquestador principal que recibe el prompt y decide qué hacer).
+
+📁 tools/ (Tus funciones auxiliares convertidas en herramientas para el LLM: ej. sendEmailTool.js, getEventStatsTool.js, generateDiscountTool.js).
+
+📁 prompts/ (Plantillas de sistema para darle personalidad y reglas al Agente).
+
+📁 workers/ (Tu lógica de colas desatendidas)
+
+📄 outboundWorker.js (Aquí mueves el código de new Worker(...) que tienes en tu index.js).
+
+📁 routes/ (Tus endpoints de Express)
+
+📄 chatRoutes.js (El endpoint que recibe el prompt del frontend: POST /api/chat).
+
+📁 services/ (Conexiones a BD y lógicas externas)
+
+📄 eventbriteSync.js (Para simular o traer los datos de los eventos).
+
+📄 index.js (Solo para arrancar Express, conectar Redis y montar las rutas).
+
+¿Cómo funciona el "Cerebro" en LangChain.js?
+Lo que estás describiendo (un LLM que lee un prompt y decide qué workflow ejecutar) se implementa en LangChain mediante Agentes (Agents) y Herramientas (Tools). El marco LangChain se utiliza precisamente para orquestar estas cadenas de razonamiento y uso de herramientas.
+
+Defines tus Tools: Envuelves tus APIs (ej. enviar email, consultar base de datos vectorial ChromaDB) en clases Tool de LangChain. Le das a cada una un nombre y una descripción muy clara.
+
+Creas el Agente: Le pasas el modelo de OpenAI (o el que uses) y la lista de Tools.
+
+
+Ejecución: Cuando llega el prompt del usuario ("Crea un mail para mi evento de mañana porque no he vendido nada"), el LLM lee las descripciones de las Tools, razona que necesita consultar los datos del evento y redactar un correo con urgencia, y ejecuta exactamente esos flujos.
