@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "node --env-file=../../.env ./index.js",
+    "seed": "node --env-file=../../.env ./src/scripts/seed.js",
+    "start": "node ./index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "echo \"No lint configured yet\"",
-    "start": "node index.js"
+    "lint": "echo \"No lint configured yet\""
   },
   "keywords": [],
   "author": "",

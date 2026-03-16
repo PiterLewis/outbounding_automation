@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
+import { Draft } from '../models/Draft.js';
 
 const router = Router();
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
@@ -52,4 +53,15 @@ router.get('/chat/status/:jobId', async (req, res) => {
     }
 });
 
+router.get('/drafts/:id', async (req, res) => {
+    try {
+        const draft = await Draft.findById(req.params.id);
+        if (!draft) {
+            return res.status(404).json({ error: "Borrador no encontrado" });
+        }
+        res.status(200).json(draft);
+    } catch (error) {
+        res.status(500).json({ error: "Error al consultar el borrador" });
+    }
+});
 export default router;
