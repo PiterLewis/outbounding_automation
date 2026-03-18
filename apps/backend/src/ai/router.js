@@ -2,15 +2,15 @@ import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 
-// 1. Instanciamos el modelo (el mismo que ya te funciona de lujo)
+// Modelo para el router (temperatura 0 para precision)
 const llm = new ChatOpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
     modelName: "google/gemini-2.0-flash-001",
     configuration: { baseURL: "https://openrouter.ai/api/v1" },
-    temperature: 0 // CLAVE: Temperatura 0 para que no sea creativo, queremos precisión absoluta.
+    temperature: 0
 });
 
-// 2. Creamos el Prompt del Router basado en tu documento de diseño
+// Prompt del router de cadenas
 const routerPrompt = PromptTemplate.fromTemplate(`
 Eres el enrutador principal de un sistema de automatización de marketing para eventos.
 Tu único trabajo es analizar el contexto o la acción del usuario y decidir qué flujo (cadena) ejecutar.
@@ -28,13 +28,13 @@ Decide cuál de estas cadenas es la más apropiada:
 Responde ÚNICA Y EXCLUSIVAMENTE con el nombre exacto de la cadena. Sin puntos, sin comillas, sin saludos.
 `);
 
-// 3. Montamos la tubería (Pipeline) que une el Prompt -> LLM -> Texto limpio
+// Pipeline: Prompt -> LLM -> texto limpio
 export const aiRouter = routerPrompt.pipe(llm).pipe(new StringOutputParser());
 
-// Función auxiliar para testearlo rápido
+// Test rapido del router
 export async function testRouter(actionText) {
-    console.log(` Router analizando: "${actionText}"...`);
+    console.log(`[Router] Analizando: "${actionText}"`);
     const decision = await aiRouter.invoke({ action: actionText });
-    console.log(` Decisión del LLM: ${decision}`);
+    console.log(`[Router] Decision: ${decision}`);
     return decision;
 }

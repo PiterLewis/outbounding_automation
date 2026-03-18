@@ -10,26 +10,25 @@ const llm = new ChatOpenAI({
 });
 
 export async function runLastMinuteChain(eventId) {
-    console.log(`\n[Chain: Last Minute] Iniciando aviso de última hora para ${eventId}...`);
+    console.log(`\n[LastMinute] Iniciando aviso de ultima hora para ${eventId}`);
 
-    // 1. CONTEXTO BD: Buscar usuarios en waitlist o que visitaron sin comprar.
-    // Como en nuestro seed.js no pusimos a nadie en waitlist, usamos interestedEvents como fallback para la prueba.
+    // Buscar usuarios en waitlist, visitantes o interesados
     const targetUsers = await User.find({
         $or: [
             { waitlistEvents: eventId },
             { visitedEvents: eventId },
-            { interestedEvents: eventId } // Fallback para que encuentre a nuestros 3 usuarios de prueba
+            { interestedEvents: eventId }
         ]
     });
 
     const audienceCount = targetUsers.length;
-    console.log(` Usuarios en lista de espera/visitantes encontrados: ${audienceCount}`);
+    console.log(`[LastMinute] Usuarios encontrados: ${audienceCount}`);
 
-    // Datos simulados del evento (Quedan 24h y 15 entradas)
+    // Datos del evento (simulados)
     const hoursLeft = 24;
     const ticketsLeft = 15;
 
-    // 2. LANGCHAIN: Mensaje multicanal (Push/SMS) de urgencia
+    // Generar mensaje de urgencia con IA
     const prompt = PromptTemplate.fromTemplate(`
         Quedan {hoursLeft} horas para el evento {eventId}.
         Solo {ticketsLeft} entradas disponibles.
@@ -42,7 +41,7 @@ export async function runLastMinuteChain(eventId) {
         {{"subject": "SMS", "body": "El texto del SMS corto"}}
     `);
 
-    console.log(`  LLM redactando SMS de urgencia sin exclamaciones...`);
+    console.log('[LastMinute] Generando SMS de urgencia...');
     const result = await prompt.pipe(llm).invoke({
         hoursLeft,
         ticketsLeft,
@@ -54,11 +53,11 @@ export async function runLastMinuteChain(eventId) {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log(" Error parseando JSON, se usará texto plano.");
+        console.log('[LastMinute] Error parseando JSON, usando texto plano');
     }
 
-    // 3. HUMAN IN THE LOOP: Guardar borrador en BD
-    console.log(` Guardando borrador de SMS en la BD...`);
+    // Guardar borrador para aprobacion manual
+    console.log('[LastMinute] Guardando borrador SMS en BD...');
     const draft = await Draft.create({
         eventId: eventId,
         chainUsed: 'last_minute_push',
@@ -70,6 +69,6 @@ export async function runLastMinuteChain(eventId) {
         metadata: { channels: ['SMS', 'Push Notification'] }
     });
 
-    console.log(`[Chain: Last Minute] Borrador SMS generado (ID: ${draft._id}).`);
+    console.log(`[LastMinute] Borrador generado (ID: ${draft._id})`);
     return draft;
 }

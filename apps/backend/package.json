@@ -24,7 +24,9 @@
     "express": "^5.2.1",
     "ioredis": "^5.10.0",
     "langchain": "^1.2.30",
-    "mongoose": "^9.3.0"
+    "mongoose": "^9.3.0",
+    "resend": "^6.9.4",
+    "twilio": "^5.13.0"
   },
   "type": "module"
 }

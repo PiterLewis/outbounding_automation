@@ -1,12 +1,10 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-// Herramienta 1: Consultar métricas del evento
+// Consultar metricas de un evento (datos simulados)
 export const getEventMetrics = tool(
     async ({ eventId }) => {
-        console.log(`[Tool] El LLM ha decidido consultar las métricas del evento: ${eventId}`);
-        // Aquí harías tu consulta a MongoDB o Eventbrite API
-        // Por ahora, simulamos una situación crítica ("Empujón de última hora")
+        console.log(`[Tool] Consultando metricas del evento: ${eventId}`);
         return JSON.stringify({
             soldTickets: 40,
             totalCapacity: 100,

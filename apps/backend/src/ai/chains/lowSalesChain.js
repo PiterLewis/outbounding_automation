@@ -1,75 +1,71 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { PromptTemplate } from "@langchain/core/prompts";
 import { User } from "../../models/user.js";
-import { Draft } from "../../models/Draft.js";
-
-// Instanciamos el modelo para esta cadena específica
-const llm = new ChatOpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    modelName: "google/gemini-2.0-flash-001",
-    configuration: { baseURL: "https://openrouter.ai/api/v1" }
-});
+import { notificationService } from "../../services/notifications.js";
+import { eventbriteService } from "../../services/eventbrite.js";
+import { llm } from "../model.js";
+import { PromptTemplate } from "@langchain/core/prompts";
 
 export async function runLowSalesChain(eventId) {
-    console.log(`\n [Chain: Low Sales] Iniciando rescate para el evento ${eventId}...`);
+    console.log(`\n[LowSales] Evaluando ventas para evento ${eventId}`);
 
-    // 1. CONTEXTO DE BD: Buscamos usuarios interesados que no hayan recibido descuento 
-    const targetUsers = await User.find({
+    // Leer metricas reales de Eventbrite
+    const metrics = await eventbriteService.getEventMetrics(eventId);
+    console.log(`[LowSales] Vendidas ${metrics.quantity_sold}/${metrics.quantity_total} (${(metrics.pct_sold * 100).toFixed(2)}%)`);
+
+    // Si las ventas superan el 40%, no se activa la promocion
+    if (metrics.pct_sold >= 0.4) {
+        console.log('[LowSales] Ventas suficientes, abortando promocion');
+        return { status: 'skipped', reason: 'sales_ok' };
+    }
+
+    // Buscar usuarios interesados que no hayan sido notificados
+    const users = await User.find({
         interestedEvents: eventId,
         notifiedDiscount: { $ne: eventId }
     });
-    const audienceCount = targetUsers.length;
-    console.log(` Usuarios objetivo encontrados en Mongo: ${audienceCount}`);
 
-    // Simulación de datos de Eventbrite (Métricas) [cite: 136, 137]
-    const pctSold = "40%";
-    const daysLeft = 2;
-    const discountCode = `SOS-${eventId.slice(-4).toUpperCase()}`; // Código autogenerado [cite: 166]
-
-    // 2. LANGCHAIN: Generación de contenido [cite: 161, 162, 163, 164, 165, 166, 167]
-    const prompt = PromptTemplate.fromTemplate(`
-        El evento {eventId} tiene solo {pctSold} de entradas vendidas.
-        Faltan {daysLeft} días. Crea un email persuasivo con:
-        - Asunto urgente (max 60 chars)
-        - Cuerpo corto (max 80 words)
-        - Incluye el código descuento: {discountCode}
-        - Tono: amigable pero urgente
-
-        Responde ESTRICTAMENTE en JSON válido con este formato:
-        {{"subject": "Tu asunto", "body": "El cuerpo del mensaje"}}
-    `);
-
-    // Ejecutamos la cadena
-    console.log(`LLM redactando el correo persuasivo...`);
-    const result = await prompt.pipe(llm).invoke({
-        eventId,
-        pctSold,
-        daysLeft,
-        discountCode
-    });
-
-    // Parseamos la respuesta JSON del LLM
-    let parsedContent = { subject: "Aviso Urgente", body: result.content };
-    try {
-        const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsedContent = JSON.parse(cleanJson);
-    } catch (e) {
-        console.log(" Error parseando JSON, se usará texto plano.");
+    if (users.length === 0) {
+        console.log('[LowSales] No hay usuarios pendientes para este evento');
+        return { status: 'skipped', reason: 'no_users' };
     }
 
-    // 3. HUMAN IN THE LOOP: Guardar borrador en MongoDB
-    console.log(` Guardando borrador en la Base de Datos...`);
-    const draft = await Draft.create({
-        eventId: eventId,
-        chainUsed: 'low_sales_discount',
-        subject: parsedContent.subject,
-        body: parsedContent.body,
-        targetAudienceCount: audienceCount,
-        isApproved: false, // ¡Bloqueo de seguridad activado!
-        status: 'pending',
-        metadata: { discountCode } // Guardamos el código para cuando se envíe de verdad
+    // IA redacta el email de promocion
+    const promoCode = `SALVA-${Date.now().toString().slice(-4)}`;
+    console.log(`[LowSales] Generando campana con codigo ${promoCode}`);
+
+    const prompt = PromptTemplate.fromTemplate(`
+        El evento (ID: {eventId}) tiene un aforo de {total} personas, pero solo hemos vendido {sold}.
+        Crea el asunto (max 50 chars) y el cuerpo (max 40 palabras) de un email urgente para vender las restantes.
+        Incluye el código de 20% descuento: {code}.
+        Responde estrictamente en este formato: ASUNTO: [asunto] | CUERPO: [cuerpo]
+    `);
+
+    const response = await prompt.pipe(llm).invoke({
+        eventId,
+        total: metrics.quantity_total,
+        sold: metrics.quantity_sold,
+        code: promoCode
     });
 
-    console.log(` [Chain: Low Sales] Borrador generado (ID: ${draft._id}).`);
-    return draft;
+    const parts = response.content.split('| CUERPO:');
+    const subject = parts[0].replace('ASUNTO:', '').trim();
+    const body = parts[1]?.trim() || response.content;
+
+    // Crear descuento en Eventbrite
+    console.log('[LowSales] Creando descuento del 20% en Eventbrite');
+    await eventbriteService.createDiscount(eventId, promoCode, "20.00");
+
+    // Enviar emails a los usuarios
+    console.log(`[LowSales] Enviando ${users.length} correos`);
+    for (const user of users) {
+        await notificationService.sendEmail(user.email, subject, body);
+    }
+
+    // Marcar usuarios como notificados (anti-spam)
+    await User.updateMany(
+        { _id: { $in: users.map(u => u._id) } },
+        { $push: { notifiedDiscount: eventId } }
+    );
+
+    console.log('[LowSales] Cadena completada');
+    return { status: 'completed', notifiedCount: users.length, promoCode };
 }

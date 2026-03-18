@@ -8,7 +8,7 @@ const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', 
 
 const outboundingQueue = new Queue('outbounding', { connection });
 
-// 1. Endpoint para enviar el prompt (el que ya tienes)
+// Enviar prompt al sistema de IA
 router.post('/chat', async (req, res) => {
     const { prompt, eventId } = req.body;
 
@@ -28,7 +28,7 @@ router.post('/chat', async (req, res) => {
     }
 });
 
-// 2. NUEVO: Endpoint para consultar el estado del Job
+// Consultar estado de un job
 router.get('/chat/status/:jobId', async (req, res) => {
     try {
         const job = await outboundingQueue.getJob(req.params.jobId);
@@ -37,15 +37,12 @@ router.get('/chat/status/:jobId', async (req, res) => {
             return res.status(404).json({ error: "Trabajo no encontrado" });
         }
 
-        // Obtiene el estado actual (waiting, active, completed, failed)
         const state = await job.getState();
-        // Si ha terminado, aquí estará el borrador generado por LangChain
         const result = job.returnvalue;
 
         res.status(200).json({
             jobId: job.id,
             state: state,
-            // Solo devolvemos el resultado si el estado es 'completed'
             result: state === 'completed' ? result : null
         });
     } catch (error) {
@@ -53,6 +50,7 @@ router.get('/chat/status/:jobId', async (req, res) => {
     }
 });
 
+// Obtener borrador por ID
 router.get('/drafts/:id', async (req, res) => {
     try {
         const draft = await Draft.findById(req.params.id);

@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 async function testCerebro() {
-    console.log("--- Intentando conexión con modelo estable vía OpenRouter ---");
+    console.log('[TestLLM] Conectando con modelo via OpenRouter...');
 
     try {
         const model = new ChatOpenAI({
@@ -30,12 +30,12 @@ async function testCerebro() {
             .pipe(new StringOutputParser())
             .invoke("Victor Benito es un cajero de mercadona, donde trabaja victor benito? ");
 
-        console.log("\n RESULTADO:");
+        console.log('\n[TestLLM] Resultado:');
         console.log(response);
 
     } catch (error) {
-        console.error(" Error:", error.message);
-        console.log("\n TIP: Si sigue fallando, prueba con 'openai/gpt-3.5-turbo' (OpenRouter lo mapea a menudo).");
+        console.error('[TestLLM] Error:', error.message);
+        console.log('[TestLLM] Tip: Si falla, prueba con openai/gpt-3.5-turbo');
     }
 }
 

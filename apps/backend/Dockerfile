@@ -1,21 +1,19 @@
-FROM base AS runner
+FROM node:20-alpine
+
+# Creamos el directorio de trabajo
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Copiamos los archivos de dependencias
+COPY package*.json ./
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodeapp
+# Instalamos todo
+RUN npm install
 
-COPY --from=builder --chown=nodeapp:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodeapp:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nodeapp:nodejs /app/index.js ./index.js
+# Copiamos el resto del código
+COPY . .
 
-COPY --from=builder --chown=nodeapp:nodejs /app/src ./src 
+# Exponemos el puerto del backend
+EXPOSE 3000
 
-USER nodeapp
-
-EXPOSE 4000
-
-ENV PORT=4000
-
-CMD ["node", "index.js"]
+# Comando para desarrollo (ajusta según tu package.json)
+CMD ["npm", "run", "dev"]

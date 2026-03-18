@@ -7,11 +7,11 @@ const UserSchema = new mongoose.Schema({
     city: String,
     phone: String,
     pushSubscription: String,
-    interestedEvents: [String], // IDs de eventos de Eventbrite
+    interestedEvents: [String],
     purchasedEvents: [String],
     visitedEvents: [String],
     waitlistEvents: [String],
-    notifiedDiscount: [String], // Array de IDs de eventos para control anti-spam
+    notifiedDiscount: [String],
     preferences: [String]
 }, { timestamps: true });
 

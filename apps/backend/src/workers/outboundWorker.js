@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { aiRouter } from "../ai/router.js";
-import { runLowSalesChain } from "../ai/chains/lowSalesChain.js"; // <-- Importamos al especialista
+import { runLowSalesChain } from "../ai/chains/lowSalesChain.js";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -9,23 +9,22 @@ import { runVipUpsellChain } from "../ai/chains/vip_upsell.js";
 import { runLastMinuteChain } from "../ai/chains/last_minute.js";
 import { runAgeFacebookChain } from "../ai/chains/facebook_campaign.js";
 
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
 
 export const outboundWorker = new Worker('outbounding', async (job) => {
-    console.log(`\n[Worker] Iniciando Job ${job.id}`);
+    console.log(`\n[Worker] Iniciando job ${job.id}`);
     const { eventId, prompt } = job.data;
 
-    // PASO 1: EL ROUTER DECIDE
-    console.log(` Consultando al Router de IA...`);
+    // Paso 1: el router decide la cadena
+    console.log('[Worker] Consultando router IA...');
     const chainDecision = await aiRouter.invoke({ action: prompt });
     const cleanDecision = chainDecision.trim();
-    console.log(` Decisión del Router: ${cleanDecision}`);
+    console.log(`[Worker] Decision: ${cleanDecision}`);
 
-    // PASO 2: EJECUTAR LA CADENA ESPECIALIZADA
+    // Paso 2: ejecutar la cadena correspondiente
     let resultDraft;
 
     switch (cleanDecision) {
@@ -46,7 +45,7 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
             break;
 
         default:
-            console.log(` Cadena desconocida o genérica: ${cleanDecision}`);
+            console.log(`[Worker] Cadena no reconocida: ${cleanDecision}`);
             break;
     }
 
@@ -58,5 +57,10 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
 }, { connection });
 
 outboundWorker.on('completed', (job, returnvalue) => {
-    console.log(`🎉 Job completado con éxito.`);
+    console.log('[Worker] Job completado.');
+});
+
+outboundWorker.on('failed', (job, err) => {
+    console.error(`[Worker] Error en job ${job.id}:`);
+    console.error(err.stack);
 });

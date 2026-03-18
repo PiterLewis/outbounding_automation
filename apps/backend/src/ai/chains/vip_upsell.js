@@ -10,25 +10,24 @@ const llm = new ChatOpenAI({
 });
 
 export async function runVipUpsellChain(eventId) {
-    console.log(`\n[Chain: VIP Upsell] Buscando clientes premium para el evento ${eventId}...`);
+    console.log(`\n[VipUpsell] Buscando clientes premium para evento ${eventId}`);
 
-    // 1. CONTEXTO DE BD: Buscar VIPs (Usuarios con 3 o más eventos en pastEvents)
-    // Usamos un truco de Mongo: si el índice 2 existe, el array tiene al menos 3 elementos.
+    // Buscar VIPs (usuarios con 3+ eventos pasados)
     const vipAttendees = await Attendee.find({ 'pastEvents.2': { $exists: true } });
 
     if (vipAttendees.length === 0) {
-        console.log(" No se encontraron clientes VIP.");
+        console.log('[VipUpsell] No se encontraron clientes VIP');
         return null;
     }
 
-    const vip = vipAttendees[0]; // Para este ejemplo, le escribimos al primer VIP encontrado
-    console.log(` VIP Encontrado: ${vip.name} (Intereses: ${vip.interests.join(', ')})`);
+    const vip = vipAttendees[0];
+    console.log(`[VipUpsell] VIP encontrado: ${vip.name} (Intereses: ${vip.interests.join(', ')})`);
 
     const discountPct = 20;
     const safeName = vip.name ? vip.name.split(' ')[0].toUpperCase() : 'CLIENTE';
     const discountCode = `VIP-${safeName}-${discountPct}`;
 
-    // 2. LANGCHAIN: Generación de contenido hiper-personalizado
+    // Generar contenido personalizado con IA
     const prompt = PromptTemplate.fromTemplate(`
         Tenemos un cliente VIP llamado {vipName}.
         Le interesan temas de: {vipInterests}.
@@ -44,7 +43,7 @@ export async function runVipUpsellChain(eventId) {
         {{"subject": "Tu asunto", "body": "El cuerpo del mensaje"}}
     `);
 
-    console.log(`LLM redactando la oferta exclusiva 1:1...`);
+    console.log('[VipUpsell] Generando oferta personalizada...');
     const result = await prompt.pipe(llm).invoke({
         vipName: vip.name,
         vipInterests: vip.interests.join(', '),
@@ -59,22 +58,22 @@ export async function runVipUpsellChain(eventId) {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log(" Error parseando JSON, se usará texto plano.");
+        console.log('[VipUpsell] Error parseando JSON, usando texto plano');
     }
 
-    // 3. HUMAN IN THE LOOP: Guardar borrador
-    console.log(`Guardando borrador VIP en la BD...`);
+    // Guardar borrador para aprobacion manual
+    console.log('[VipUpsell] Guardando borrador en BD...');
     const draft = await Draft.create({
         eventId: eventId,
         chainUsed: 'vip_upsell',
         subject: parsedContent.subject,
         body: parsedContent.body,
-        targetAudienceCount: 1, // Es 1:1 para este VIP
+        targetAudienceCount: 1,
         isApproved: false,
         status: 'pending',
         metadata: { vipEmail: vip.email, discountCode: discountCode }
     });
 
-    console.log(`[Chain: VIP Upsell] Borrador generado (ID: ${draft._id}).`);
+    console.log(`[VipUpsell] Borrador generado (ID: ${draft._id})`);
     return draft;
 }

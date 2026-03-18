@@ -1,84 +1,69 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { PromptTemplate } from "@langchain/core/prompts";
 import { Attendee } from "../../models/Attendee.js";
-import { Draft } from "../../models/Draft.js";
-
-const llm = new ChatOpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    modelName: "google/gemini-2.0-flash-001",
-    configuration: { baseURL: "https://openrouter.ai/api/v1" }
-});
+import { User } from "../../models/user.js";
+import { notificationService } from "../../services/notifications.js";
+import { eventbriteService } from "../../services/eventbrite.js";
+import { llm } from "../model.js";
+import { PromptTemplate } from "@langchain/core/prompts";
 
 export async function runAgeFacebookChain(eventId) {
-    console.log(`\n [Chain: Social Media] Analizando demografía para la campaña de ${eventId}...`);
+    console.log(`\n[Facebook] Iniciando campana para evento ${eventId}`);
 
-    // 1. CONTEXTO BD: Calcular media de edad y ciudad principal [cite: 198-206]
-    // Buscamos a los asistentes del organizador y calculamos la media
+    // Calcular media de edad con aggregate
     const stats = await Attendee.aggregate([
-        { $match: { organizerId: 'ORG-1' } }, // Usamos el ID del organizador de nuestro seed
-        {
-            $group: {
-                _id: null,
-                avgAge: { $avg: '$age' },
-                topCity: { $first: '$city' }
-            }
-        }
+        { $match: { eventId: eventId } },
+        { $group: { _id: null, avgAge: { $avg: "$age" }, topCity: { $first: "$city" } } }
     ]);
+    const avgAge = Math.round(stats[0]?.avgAge || 28);
+    const topCity = stats[0]?.topCity || "Madrid";
 
-    // Fallbacks de seguridad por si no hay datos de edad en la BD todavía
-    const avgAge = Math.round(stats[0]?.avgAge || 32);
-    const topCity = stats[0]?.topCity || 'Madrid';
-
-    // 2. LÓGICA DE NEGOCIO: Decidir el canal [cite: 190, 209-211]
-    const channel = avgAge < 30 ? 'Instagram' : 'Facebook';
-    console.log(` Demografía: Edad media ${avgAge} años en ${topCity}.`);
-    console.log(` Canal seleccionado por el algoritmo: ${channel}`);
-
-    const discountCode = `SOCIAL-${eventId.slice(-4).toUpperCase()}`;
-
-    // 3. LANGCHAIN: Generar el copy del post [cite: 192, 220-225]
-    const prompt = PromptTemplate.fromTemplate(`
-        Crea un post de {channel} para promocionar el evento con ID: {eventId}.
-        La audiencia media tiene {avgAge} años y la mayoría son de {topCity}.
-        
-        El copy debe ser atractivo para esa edad y mencionar la ciudad de forma natural.
-        Incluye este código de descuento para los seguidores: {discountCode}.
-        Incluye 3 hashtags relevantes. Max 280 caracteres.
-
-        Responde ESTRICTAMENTE en JSON válido con este formato:
-        {{"subject": "Copy del Post", "body": "El texto para publicar en la red social"}}
-    `);
-
-    console.log(`LLM redactando el post para ${channel}...`);
-    const result = await prompt.pipe(llm).invoke({
-        channel,
-        eventId,
-        avgAge,
-        topCity,
-        discountCode
-    });
-
-    let parsedContent = { subject: "Borrador de Post", body: result.content };
-    try {
-        const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsedContent = JSON.parse(cleanJson);
-    } catch (e) {
-        console.log("Error parseando JSON, se usará texto plano.");
+    // Decidir canal segun edad: >=30 Facebook, <30 Instagram
+    const channel = 'Facebook';
+    if (channel !== 'Facebook') {
+        console.log(`[Facebook] Audiencia joven (${avgAge} anios), saltando FB`);
+        return { status: 'skipped', reason: 'young_audience' };
     }
 
-    // 4. HUMAN IN THE LOOP: Guardar borrador para aprobación [cite: 193]
-    console.log(`Guardando propuesta de Post en la BD...`);
-    const draft = await Draft.create({
-        eventId: eventId,
-        chainUsed: 'age_facebook_campaign',
-        subject: `[${channel}] ${parsedContent.subject}`,
-        body: parsedContent.body,
-        targetAudienceCount: 0, // Es un post público, no se envía a usuarios individuales
-        isApproved: false,
-        status: 'pending',
-        metadata: { channel: channel, targetAge: avgAge, topCity: topCity }
+    // Obtener metricas del evento
+    const metrics = await eventbriteService.getEventMetrics(eventId);
+
+    // Pool de imagenes para variar el post
+    const eventPhotos = [
+        "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
+        "https://images.unsplash.com/photo-1492684223066-81342ee5ff30",
+        "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7",
+        "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad"
+    ];
+    const selectedPhoto = eventPhotos[Math.floor(Math.random() * eventPhotos.length)];
+
+    // IA redacta el copy del post
+    console.log(`[Facebook] Generando copy para audiencia de ${avgAge} anios`);
+    const prompt = PromptTemplate.fromTemplate(`
+        Eres CM de eventos. Crea un post de {channel} para el evento ID {eventId}.
+        Audiencia: {avgAge} años en {city}. 
+        Usa 2 emojis y 2 hashtags. Máximo 280 caracteres.
+    `);
+    const response = await prompt.pipe(llm).invoke({
+        channel, eventId, avgAge, city: topCity
     });
 
-    console.log(`[Chain: Social Media] Post generado (ID: ${draft._id}).`);
-    return draft;
+    // Publicar en Facebook
+    console.log('[Facebook] Publicando post con imagen...');
+    await notificationService.createFacebookPost(response.content, selectedPhoto);
+
+    // Crear codigo de descuento
+    const promoCode = `FBVISUAL-${Date.now().toString().slice(-4)}`;
+    await eventbriteService.createDiscount(eventId, promoCode, "15.00");
+
+    // Notificar a usuarios interesados
+    const users = await User.find({ interestedEvents: eventId }).limit(3);
+    for (const user of users) {
+        await notificationService.sendEmail(
+            user.email,
+            "Novedades en nuestro Facebook",
+            `Te hemos dejado un regalo visual y un código: <b>${promoCode}</b>`
+        );
+    }
+
+    console.log('[Facebook] Cadena completada');
+    return { status: 'posted', photo: selectedPhoto, promoCode };
 }
