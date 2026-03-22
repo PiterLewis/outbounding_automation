@@ -16,4 +16,4 @@ const AttendeeSchema = new mongoose.Schema({
     surveyAnswered: Boolean
 }, { timestamps: true });
 
-export const Attendee = mongoose.model('Attendee', AttendeeSchema);
+export const Attendee = mongoose.models.Attendee || mongoose.model('Attendee', AttendeeSchema)
