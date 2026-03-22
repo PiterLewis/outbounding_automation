@@ -1,4 +1,4 @@
-import { Attendee } from "../../models/Attendee.js";
+import { Attendee } from "../../models/attendee.js";
 import { User } from "../../models/user.js";
 import { notificationService } from "../../services/notifications.js";
 import { eventbriteService } from "../../services/eventbrite.js";

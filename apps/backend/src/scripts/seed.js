@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from '../models/user.js';
-import { Attendee } from '../models/Attendee.js';
-import { Draft } from '../models/Draft.js';
+import { Attendee } from '../models/attendee.js';
+import { Draft } from '../models/draft.js';
 
 const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/eventbrite_challenge';
 

@@ -1,9 +1,11 @@
 import { Resend } from 'resend';
 import twilio from 'twilio';
 
-// Inicializar clientes de notificaciones
-const resend = new Resend(process.env.RESEND_API_KEY);
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+// Inicializar clientes de notificaciones (solo si las keys existen)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    : null;
 
 export const notificationService = {
     // Enviar email via Resend

@@ -1,7 +1,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { User } from "../../models/user.js";
-import { Draft } from "../../models/Draft.js";
+import { Draft } from "../../models/draft.js";
 
 const llm = new ChatOpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
