@@ -10,14 +10,14 @@ const outboundingQueue = new Queue('outbounding', { connection });
 
 // Enviar prompt al sistema de IA
 router.post('/chat', async (req, res) => {
-    const { prompt, eventId } = req.body;
+    const { prompt, eventId, attendeeEmail} = req.body;
 
     if (!prompt || !eventId) {
         return res.status(400).json({ error: "Faltan datos: se requiere 'prompt' y 'eventId'" });
     }
 
     try {
-        const job = await outboundingQueue.add('agent_workflow', { prompt, eventId });
+        const job = await outboundingQueue.add('agent_workflow', { prompt, eventId, attendeeEmail });
         res.status(201).json({
             message: "La IA está analizando los datos y preparando la campaña...",
             jobId: job.id,

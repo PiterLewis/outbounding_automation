@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Exponemos el puerto del backend
-EXPOSE 3000
+EXPOSE 4000
 
 # Comando para desarrollo (ajusta según tu package.json)
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
