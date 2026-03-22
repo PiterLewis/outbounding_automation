@@ -38,10 +38,10 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/jobs`, {
+      const res = await fetch(`${BACKEND_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: { message: text } }),
+        body: JSON.stringify({ prompt: text, eventId: "EVT-999" }),
       });
 
       const json = await res.json();
@@ -49,7 +49,7 @@ export default function Chat() {
       const responseMsg = {
         id: Date.now() + 1,
         type: "backend",
-        text: `Job creado correctamente`,
+        text: json.message || `Job creado correctamente`,
         jobId: json.jobId,
         time: new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
       };

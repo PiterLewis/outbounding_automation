@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
-import { Draft } from '../models/Draft.js';
+import { Draft } from '../models/draft.js';
 
 const router = Router();
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
