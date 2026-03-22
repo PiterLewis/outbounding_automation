@@ -11,4 +11,4 @@ const DraftSchema = new mongoose.Schema({
     metadata: mongoose.Schema.Types.Mixed
 }, { timestamps: true });
 
-export const Draft = mongoose.model('Draft', DraftSchema);
+export const Draft = mongoose.models.Draft || mongoose.model('Draft', DraftSchema);

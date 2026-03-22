@@ -1,7 +1,8 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Attendee } from "../../models/Attendee.js";
-import { Draft } from "../../models/Draft.js";
+import { Draft } from "../../models/draft.js";
 import { llm } from "../model.js";
+import { notificationService } from "../../services/notifications.js";
 
 export async function runPostEventSurveyChain(eventId, userPrompt = '') {
     console.log(`\n[PostSurvey] Generando encuesta post-evento para ${eventId}`);
@@ -21,27 +22,31 @@ export async function runPostEventSurveyChain(eventId, userPrompt = '') {
         return { status: 'skipped', reason: 'no_attendees' };
     }
 
-    // Datos del evento (simulados hasta integrar Eventbrite)
     const eventName = `Evento ${eventId}`;
     const eventType = 'general';
 
     // 2. LANGCHAIN: generar preguntas adaptadas al tipo de evento
     const prompt = PromptTemplate.fromTemplate(`
-      Crea una encuesta post-evento de exactamente 3 preguntas para:
-      Evento: {eventName}. Tipo: {eventType}.
+        Crea una encuesta post-evento de exactamente 3 preguntas para:
+        Evento: {eventName}. Tipo: {eventType}.
 
-      Instrucciones adicionales del organizador: {userPrompt}
+        Las 3 preguntas deben cubrir:
+        - Satisfacción general (tipo: rating del 1 al 5)
+        - Aspecto favorito del evento (tipo: text)
+        - Qué mejorarías para la próxima vez (tipo: text)
 
-      Las 3 preguntas deben cubrir:
-      - Satisfacción general (tipo: rating del 1 al 5)
-      - Aspecto favorito del evento (tipo: text)
-      - Qué mejorarías para la próxima vez (tipo: text)
+        {extraInstructions}
 
-      Responde ESTRICTAMENTE en JSON válido con este formato exacto:
-      {{"questions": [{{"question": "...", "type": "rating"}}, {{"question": "...", "type": "text"}}, {{"question": "...", "type": "text"}}]}}
+        Responde ESTRICTAMENTE en JSON válido con este formato exacto:
+        {{"questions": [{{"question": "...", "type": "rating"}}, {{"question": "...", "type": "text"}}, {{"question": "...", "type": "text"}}]}}
     `);
 
-    const result = await prompt.pipe(llm).invoke({ eventName, eventType, userPrompt });
+    console.log('[PostSurvey] LLM generando preguntas de encuesta...');
+    const result = await prompt.pipe(llm).invoke({
+        eventName,
+        eventType,
+        extraInstructions: userPrompt ? `Instrucciones adicionales: ${userPrompt}` : ''
+    });
 
     let parsedContent = { questions: [] };
     try {
@@ -53,16 +58,15 @@ export async function runPostEventSurveyChain(eventId, userPrompt = '') {
 
     console.log(`[PostSurvey] Preguntas generadas: ${parsedContent.questions.length}`);
 
-    // 3. HUMAN IN THE LOOP: guardar borrador en MongoDB
-    console.log('[PostSurvey] Guardando borrador en BD...');
+    // 3. GUARDAR borrador en MongoDB (para registro)
     const draft = await Draft.create({
-        eventId: eventId,
+        eventId,
         chainUsed: 'post_event_survey',
         subject: `Encuesta post-evento: ${eventName}`,
         body: JSON.stringify(parsedContent.questions),
         targetAudienceCount: audienceCount,
-        isApproved: false,
-        status: 'pending',
+        isApproved: true,
+        status: 'sent',
         metadata: {
             eventName,
             eventType,
@@ -71,6 +75,34 @@ export async function runPostEventSurveyChain(eventId, userPrompt = '') {
         }
     });
 
-    console.log(`[PostSurvey] Borrador generado (ID: ${draft._id})`);
+    // 4. ENVIAR emails directamente a todos los asistentes
+    console.log(`[PostSurvey] Enviando encuesta a ${audienceCount} asistentes...`);
+
+    const questionsHtml = parsedContent.questions.map((q, i) =>
+        `<p><strong>${i + 1}. ${q.question}</strong> ${q.type === 'rating' ? '(del 1 al 5)' : ''}</p>`
+    ).join('');
+
+    await Promise.allSettled(
+        checkedIn.map(a =>
+            notificationService.sendEmail(
+                a.email,
+                `¿Qué te pareció ${eventName}? Cuéntanos (2 min)`,
+                `
+                <p>Hola ${a.name || a.email},</p>
+                <p>Gracias por asistir a <strong>${eventName}</strong>. Tu opinión nos ayuda a mejorar.</p>
+                ${questionsHtml}
+                <p>Responde a este email con tus respuestas.</p>
+                `
+            )
+        )
+    );
+
+    // 5. MARCAR asistentes como surveyAnswered
+    await Attendee.updateMany(
+        { _id: { $in: checkedIn.map(a => a._id) } },
+        { $set: { surveyAnswered: true } }
+    );
+
+    console.log(`[PostSurvey] Encuesta enviada a ${audienceCount} asistentes`);
     return draft;
 }
