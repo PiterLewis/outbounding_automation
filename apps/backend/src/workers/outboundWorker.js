@@ -9,7 +9,7 @@ import { runVipUpsellChain } from "../ai/chains/vip_upsell.js";
 import { runLastMinuteChain } from "../ai/chains/last_minute.js";
 import { runAgeFacebookChain } from "../ai/chains/facebook_campaign.js";
 import { runPostEventSurveyChain } from "../ai/chains/post_event_survey.js";
-
+import { runCheckinWelcomeChain } from "../ai/chains/checkin_welcome.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
@@ -47,6 +47,10 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
 
         case 'post_event_survey':
             resultDraft = await runPostEventSurveyChain(eventId, prompt);
+            break;
+
+        case 'checkin_welcome':
+            resultDraft = await runCheckinWelcomeChain(eventId, job.data.attendeeEmail, prompt);
             break;
 
         default:
