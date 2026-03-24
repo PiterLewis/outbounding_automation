@@ -59,10 +59,14 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
     }
 
     return {
-        draftId: resultDraft ? resultDraft._id : null,
-        chain: cleanDecision,
-        status: 'pending_approval'
-    };
+    draftId: resultDraft?._id || resultDraft?.id || null,
+    chain: cleanDecision,
+    status: 'pending_approval',
+    // Si resultDraft es solo un ID, aquí fallará. 
+    // Asegúrate de que resultDraft sea el objeto completo de la DB.
+    subject: resultDraft?.subject || null,
+    body: resultDraft?.body || null
+};
 }, { connection });
 
 outboundWorker.on('completed', (job, returnvalue) => {

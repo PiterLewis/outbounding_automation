@@ -1,5 +1,5 @@
 import { PromptTemplate } from "@langchain/core/prompts";
-import { Attendee } from "../../models/Attendee.js";
+import { Attendee } from "../../models/attendee.js";
 import { llm } from "../model.js";
 import { notificationService } from "../../services/notifications.js";
 

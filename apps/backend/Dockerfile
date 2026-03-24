@@ -16,4 +16,4 @@ COPY . .
 EXPOSE 4000
 
 # Comando para desarrollo (ajusta según tu package.json)
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]

@@ -3,21 +3,22 @@ import { notificationService } from "../../services/notifications.js";
 import { eventbriteService } from "../../services/eventbrite.js";
 import { llm } from "../model.js";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { Draft } from "../../models/draft.js"; // Importamos el modelo de borradores
 
 export async function runLowSalesChain(eventId) {
     console.log(`\n[LowSales] Evaluando ventas para evento ${eventId}`);
 
-    // Leer metricas reales de Eventbrite
+    // 1. Leer métricas reales de Eventbrite
     const metrics = await eventbriteService.getEventMetrics(eventId);
     console.log(`[LowSales] Vendidas ${metrics.quantity_sold}/${metrics.quantity_total} (${(metrics.pct_sold * 100).toFixed(2)}%)`);
 
-    // Si las ventas superan el 40%, no se activa la promocion
+    // 2. Si las ventas superan el 40%, no se activa la promoción
     if (metrics.pct_sold >= 0.4) {
-        console.log('[LowSales] Ventas suficientes, abortando promocion');
+        console.log('[LowSales] Ventas suficientes, abortando promoción');
         return { status: 'skipped', reason: 'sales_ok' };
     }
 
-    // Buscar usuarios interesados que no hayan sido notificados
+    // 3. Buscar usuarios interesados que no hayan sido notificados
     const users = await User.find({
         interestedEvents: eventId,
         notifiedDiscount: { $ne: eventId }
@@ -28,9 +29,9 @@ export async function runLowSalesChain(eventId) {
         return { status: 'skipped', reason: 'no_users' };
     }
 
-    // IA redacta el email de promocion
+    // 4. IA redacta el email de promoción
     const promoCode = `SALVA-${Date.now().toString().slice(-4)}`;
-    console.log(`[LowSales] Generando campana con codigo ${promoCode}`);
+    console.log(`[LowSales] Generando campaña con código ${promoCode}`);
 
     const prompt = PromptTemplate.fromTemplate(`
         El evento (ID: {eventId}) tiene un aforo de {total} personas, pero solo hemos vendido {sold}.
@@ -46,26 +47,56 @@ export async function runLowSalesChain(eventId) {
         code: promoCode
     });
 
+    // Separar la respuesta de la IA en Asunto y Cuerpo
     const parts = response.content.split('| CUERPO:');
     const subject = parts[0].replace('ASUNTO:', '').trim();
     const body = parts[1]?.trim() || response.content;
 
-    // Crear descuento en Eventbrite
+    // 5. Crear el objeto de descuento en Eventbrite
     console.log('[LowSales] Creando descuento del 20% en Eventbrite');
-    await eventbriteService.createDiscount(eventId, promoCode, "20.00");
+    try {
+        await eventbriteService.createDiscount(eventId, promoCode, "20.00");
+    } catch (err) {
+        console.error('[LowSales] Error al crear descuento en Eventbrite (posible ID de prueba)');
+    }
 
-    // Enviar emails a los usuarios
-    console.log(`[LowSales] Enviando ${users.length} correos`);
+    // 6. GUARDAR COMO BORRADOR EN MONGODB
+    // Esto es lo que permite que el botón "Aprobar" de la interfaz tenga algo que enviar
+    console.log('[LowSales] Guardando borrador en la base de datos...');
+    const nuevoBorrador = await Draft.create({
+        eventId: eventId,
+        chainUsed: 'low_sales_discount',
+        subject: subject,
+        body: body,
+        targetAudienceCount: users.length,
+        status: 'pending',
+        metadata: { promoCode }
+    });
+
+    /* 7. ENVÍO AUTOMÁTICO DESACTIVADO
+       Comentamos el envío para que el correo solo salga cuando 
+       le des al botón "Aprobar y Programar" en el frontend.
+
     for (const user of users) {
         await notificationService.sendEmail(user.email, subject, body);
     }
+    */
 
-    // Marcar usuarios como notificados (anti-spam)
+    // 8. Marcar usuarios como notificados para evitar duplicados en el futuro
     await User.updateMany(
         { _id: { $in: users.map(u => u._id) } },
         { $push: { notifiedDiscount: eventId } }
     );
 
-    console.log('[LowSales] Cadena completada');
-    return { status: 'completed', notifiedCount: users.length, promoCode };
+    console.log('[LowSales] Cadena completada exitosamente');
+
+    // IMPORTANTE: Devolvemos draftId, subject y body para el ChatPanel
+    return { 
+        status: 'completed', 
+        draftId: nuevoBorrador._id,
+        notifiedCount: users.length, 
+        promoCode,
+        subject,
+        body
+    };
 }

@@ -9,190 +9,111 @@ export default function ChatPanel({ onAplicar }) {
   const [mensajes, setMensajes] = useState([
     {
       rol: "asistente",
-      texto: "Hola! Soy tu asistente de marketing. Dime que quieres hacer con tu evento y me encargo de analizarlo.",
+      texto: "¡Hola! Soy tu asistente. Pídeme ayuda con tus eventos (ej: 'tengo pocas ventas') y generaré una propuesta.",
     },
   ]);
   const [input, setInput] = useState("");
   const [cargando, setCargando] = useState(false);
   const bottomRef = useRef(null);
 
-  // cada vez que cambian los mensajes, bajamos el scroll
-  useEffect(function () {
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensajes]);
 
-
-  // consulta el estado del job cada 2 segundos hasta que termine
   async function esperarResultado(jobId) {
     let intentos = 0;
-    let maxIntentos = 30; // como mucho 60 segundos
+    while (intentos < 30) {
+      await new Promise(r => setTimeout(r, 2000));
+      const res = await fetch(`${BACKEND_URL}/api/chat/status/${jobId}`);
+      const datos = await res.json();
 
-    while (intentos < maxIntentos) {
-      // esperamos 2 segundos entre cada consulta
-      await new Promise(function (resolve) {
-        setTimeout(resolve, 2000);
-      });
-
-      let respuesta = await fetch(BACKEND_URL + "/api/chat/status/" + jobId);
-      let datos = await respuesta.json();
-
-      if (datos.state === "completed") {
-        return datos.result;
-      }
-
-      if (datos.state === "failed") {
-        throw new Error("El proceso fallo en el servidor");
-      }
-
-      // si no ha terminado, seguimos esperando
-      intentos = intentos + 1;
+      if (datos.state === "completed") return datos.result;
+      if (datos.state === "failed") throw new Error("Error en el Worker");
+      intentos++;
     }
-
-    throw new Error("Timeout: el proceso tardo demasiado");
+    throw new Error("Tiempo de espera agotado");
   }
 
-
-  // trae el borrador de mongo
-  async function traerBorrador(draftId) {
-    let respuesta = await fetch(BACKEND_URL + "/api/drafts/" + draftId);
-    let borrador = await respuesta.json();
-    return borrador;
-  }
-
-
-  // manda el mensaje al backend y espera la respuesta
   async function enviar() {
-    let texto = input.trim();
+    if (!input.trim() || cargando) return;
 
-    if (!texto) {
-      return;
-    }
-    if (cargando) {
-      return;
-    }
-
-    // ponemos el mensaje del usuario en el chat
-    setMensajes(function (prev) {
-      return [...prev, { rol: "usuario", texto: texto }];
-    });
+    const textoUsuario = input.trim();
+    setMensajes(prev => [...prev, { rol: "usuario", texto: textoUsuario }]);
     setInput("");
     setCargando(true);
 
     try {
-      // mandamos el prompt al backend
-      let respuesta = await fetch(BACKEND_URL + "/api/chat", {
+      const res = await fetch(`${BACKEND_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: texto, eventId: "EVT-999" }),
+        body: JSON.stringify({ prompt: textoUsuario, eventId: "EVT-999" }),
       });
-      let datos = await respuesta.json();
-      let jobId = datos.jobId;
+      const { jobId } = await res.json();
+      
+      const resultado = await esperarResultado(jobId);
 
-      // esperamos a que el worker de bullmq termine
-      let resultado = await esperarResultado(jobId);
-
-      // si genero un borrador, lo traemos de la base de datos
-      let borrador = null;
-      if (resultado && resultado.draftId) {
-        borrador = await traerBorrador(resultado.draftId);
-      }
-
-      // armamos el texto de respuesta segun lo que devolvio
-      let textoRespuesta = "";
-      if (borrador) {
-        textoRespuesta = "Cadena: " + resultado.chain;
-        textoRespuesta += "\n\nAsunto: " + borrador.subject;
-        textoRespuesta += "\n\n" + borrador.body;
+      if (resultado && resultado.subject) {
+        setMensajes(prev => [...prev, { 
+          rol: "asistente", 
+          texto: `Propuesta generada:\n\nASUNTO: ${resultado.subject}\n\n${resultado.body}`,
+          // Guardamos los datos para el botón
+          borrador: {
+            subject: resultado.subject,
+            body: resultado.body,
+            draftId: resultado.draftId // <-- AQUÍ ESTÁ LA LLAVE PARA EL BOTÓN NARANJA
+          }
+        }]);
       } else {
-        textoRespuesta = "Cadena ejecutada: " + (resultado.chain || "completado");
+        setMensajes(prev => [...prev, { rol: "asistente", texto: "No se pudo generar contenido." }]);
       }
-
-      // lo agregamos al chat
-      setMensajes(function (prev) {
-        return [...prev, { rol: "asistente", texto: textoRespuesta, borrador: borrador }];
-      });
-
-    } catch (error) {
-      // si algo falla mostramos el error
-      setMensajes(function (prev) {
-        return [...prev, { rol: "asistente", texto: "Error: " + error.message, esError: true }];
-      });
-
+    } catch (e) {
+      setMensajes(prev => [...prev, { rol: "asistente", texto: "Error: " + e.message, esError: true }]);
     } finally {
       setCargando(false);
     }
   }
 
-
   return (
-    <div className="flex flex-col min-h-[300px]">
-
-      {/* lista de mensajes */}
-      <div className="flex-1 space-y-3 overflow-auto mb-4">
-        {mensajes.map(function (msg, i) {
-
-          // decidimos las clases segun quien manda el mensaje
-          let claseMensaje = "bg-gray-100 text-gray-800";
-
-          if (msg.rol === "usuario") {
-            claseMensaje = "bg-brand text-white ml-4";
-          }
-
-          if (msg.esError) {
-            claseMensaje = "bg-red-50 text-red-700";
-          }
-
-          return (
-            <div key={i} className={"text-sm p-3 rounded-lg whitespace-pre-wrap " + claseMensaje}>
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-inner">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[350px]">
+        {mensajes.map((msg, i) => (
+          <div key={i} className={`flex ${msg.rol === "usuario" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${
+              msg.rol === "usuario" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-800"
+            } ${msg.esError ? "bg-red-100 text-red-600 border border-red-200" : ""}`}>
               {msg.texto}
-
-              {/* si hay borrador, boton para pasarlo al editor */}
+              
               {msg.borrador && (
                 <button
-                  onClick={function () {
-                    onAplicar(msg.borrador.subject, msg.borrador.body);
-                  }}
-                  className="block mt-2 text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 transition-colors"
+                  onClick={() => onAplicar(msg.borrador.subject, msg.borrador.body, msg.borrador.draftId)}
+                  className="mt-3 w-full py-2 bg-white text-orange-600 font-bold rounded-lg border border-orange-200 hover:bg-orange-50 transition-colors shadow-sm"
                 >
                   Aplicar al editor
                 </button>
               )}
             </div>
-          );
-        })}
-
-        {/* indicador de carga */}
+          </div>
+        ))}
         {cargando && (
-          <div className="flex items-center gap-2 text-sm text-gray-400 p-3">
-            <Loader2 size={14} className="animate-spin" />
-            La IA esta analizando...
+          <div className="flex items-center gap-2 text-gray-400 text-xs italic">
+            <Loader2 className="animate-spin" size={14} /> Redactando propuesta...
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* input para escribir */}
-      <div className="flex gap-2">
+      <div className="p-3 border-t flex gap-2">
         <input
           type="text"
           value={input}
-          onChange={function (e) { setInput(e.target.value); }}
-          onKeyDown={function (e) {
-            if (e.key === "Enter") {
-              enviar();
-            }
-          }}
-          placeholder="Escribe tu peticion..."
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && enviar()}
+          className="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          placeholder="Escribe aquí..."
           disabled={cargando}
-          className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-brand disabled:opacity-50"
         />
-        <button
-          onClick={enviar}
-          disabled={cargando}
-          className="w-9 h-9 flex items-center justify-center bg-brand text-white rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
-        >
-          <Send size={16} />
+        <button onClick={enviar} disabled={cargando} className="bg-orange-500 text-white p-2 rounded-full hover:bg-orange-600 disabled:opacity-50">
+          <Send size={18} />
         </button>
       </div>
     </div>
