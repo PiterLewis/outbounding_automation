@@ -84,7 +84,7 @@ async function seedDatabase() {
         await Attendee.insertMany([
             // VIP — 3+ eventos pasados
             {
-                email: 'vip@ejemplo.com',
+                email: 'victorbenito8@gmail.com',
                 name: 'Carlos VIP',
                 organizerId: 'ORG-1',
                 eventId: 'EVT-999',
@@ -100,7 +100,7 @@ async function seedDatabase() {
             },
             // Asistente normal — hizo check-in, pendiente de encuesta
             {
-                email: 'maria@ejemplo.com',
+                email: 'victorbenito8@gmail.com',
                 name: 'María',
                 organizerId: 'ORG-1',
                 eventId: 'EVT-999',
