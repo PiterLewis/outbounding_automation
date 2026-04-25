@@ -1,16 +1,14 @@
 "use client";
 
-import { Bell, Plus, ChevronDown, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { Bell, Plus, ChevronDown, Menu } from "lucide-react";
+import Link from "next/link";
 
 export default function Navbar() {
-  const [menuAbierto, setMenuAbierto] = useState(false);
-
   return (
     <header className="bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-4">
       {/* Hamburguesa en movil */}
-      <button className="md:hidden" onClick={() => setMenuAbierto(!menuAbierto)}>
-        {menuAbierto ? <X size={20} /> : <Menu size={20} />}
+      <button className="md:hidden">
+        <Menu size={20} />
       </button>
 
       {/* Logo solo en movil */}
@@ -21,10 +19,10 @@ export default function Navbar() {
 
       {/* Acciones de la derecha */}
       <div className="flex items-center gap-3">
-        <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-brand text-brand text-sm font-medium hover:bg-brand-light transition-colors">
+        <Link href="/message/new" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-brand text-brand text-sm font-medium hover:bg-brand-light transition-colors">
           <Plus size={16} />
           Crear
-        </button>
+        </Link>
 
         <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
           <Bell size={18} />

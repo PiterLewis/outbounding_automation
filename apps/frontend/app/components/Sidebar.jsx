@@ -24,8 +24,12 @@ const bottomItems = [
   { icon: HelpCircle, path: "/help", label: "Ayuda" },
 ];
 
+const baseItemClass = "flex items-center justify-center w-11 h-11 rounded-xl transition-colors";
+const inactiveClass = "text-gray-400 hover:bg-gray-100 hover:text-gray-700";
+const activeClass = "bg-sidebar-active text-white";
+
 export default function Sidebar() {
-  let pathname = usePathname();
+  const pathname = usePathname();
 
   return (
     <aside className="hidden md:flex w-[60px] border-r border-gray-200 bg-white flex-col items-center justify-between py-5">
@@ -40,25 +44,19 @@ export default function Sidebar() {
 
         {/* iconos de navegacion */}
         <nav className="flex flex-col items-center gap-2">
-          {navItems.map(function (item) {
-            let activo = (pathname === item.path);
-
-            // segun si esta activo o no, le damos un estilo distinto
-            let claseIcono = "text-gray-400 hover:bg-gray-100 hover:text-gray-700";
-            if (activo) {
-              claseIcono = "bg-sidebar-active text-white";
-            }
-
-            let IconoComponente = item.icon;
+          {navItems.map((item) => {
+            const Icono = item.icon;
+            const activo = pathname === item.path;
+            const estado = activo ? activeClass : inactiveClass;
 
             return (
               <Link
                 key={item.label}
                 href={item.path}
                 title={item.label}
-                className={"flex items-center justify-center w-11 h-11 rounded-xl transition-colors " + claseIcono}
+                className={`${baseItemClass} ${estado}`}
               >
-                <IconoComponente size={20} />
+                <Icono size={20} />
               </Link>
             );
           })}
@@ -67,16 +65,16 @@ export default function Sidebar() {
 
       {/* iconos de abajo */}
       <nav className="flex flex-col items-center gap-2">
-        {bottomItems.map(function (item) {
-          let IconoComponente = item.icon;
+        {bottomItems.map((item) => {
+          const Icono = item.icon;
           return (
             <Link
               key={item.label}
               href={item.path}
               title={item.label}
-              className="flex items-center justify-center w-11 h-11 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              className={`${baseItemClass} ${inactiveClass}`}
             >
-              <IconoComponente size={20} />
+              <Icono size={20} />
             </Link>
           );
         })}

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { Draft } from '../models/draft.js';
-import { Attendee } from '../models/Attendee.js';
+import { Attendee } from '../models/attendee.js';
+import { User } from '../models/user.js';
 import { googleFormsService } from '../services/googleForms.js';
 import { notificationService } from '../services/notifications.js';
 
@@ -205,6 +206,134 @@ router.post('/drafts/:id/send', async (req, res) => {
     } catch (error) {
         console.error('[POST /drafts/:id/send] Error:', error);
         res.status(500).json({ error: error.message || "Error al enviar la encuesta" });
+    }
+});
+
+/**
+ * Aprobar y enviar un borrador.
+ * Despacha el contenido al canal correcto según la cadena que lo generó:
+ *   - low_sales_discount    → email a usuarios marcados en notifiedDiscount
+ *   - vip_upsell            → email al VIP guardado en metadata
+ *   - last_minute_push      → SMS + push a usuarios en waitlist / visitantes / interesados
+ *   - age_facebook_campaign → la cadena ya publicó en FB; aquí solo se confirma el draft
+ *
+ * Response: { sent, failed, chain }
+ */
+router.post('/drafts/:id/approve', async (req, res) => {
+    try {
+        const draft = await Draft.findById(req.params.id);
+        if (!draft) return res.status(404).json({ error: "Borrador no encontrado" });
+
+        if (draft.status === 'approved' || draft.status === 'sent') {
+            return res.status(400).json({ error: "Este borrador ya fue enviado." });
+        }
+
+        const { chainUsed, eventId, subject, body, metadata } = draft;
+        let sent = 0;
+        let failed = 0;
+
+        if (chainUsed === 'low_sales_discount') {
+            const recipients = await User.find({
+                notifiedDiscount: eventId,
+                email: { $exists: true, $ne: '' }
+            });
+
+            if (recipients.length === 0) {
+                console.log(`[Approve] ${chainUsed} — sin destinatarios, marcando como aprobado`);
+            }
+
+            draft.status = 'approved';
+            draft.isApproved = true;
+            await draft.save();
+
+            const results = await Promise.allSettled(
+                recipients.map(u =>
+                    notificationService.sendEmail(u.email, subject, `<p>${body}</p>`)
+                )
+            );
+            sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+            failed = results.length - sent;
+        } else if (chainUsed === 'vip_upsell') {
+            const vipEmail = metadata?.vipEmail;
+            if (!vipEmail) return res.status(400).json({ error: "El borrador no tiene email del VIP." });
+
+            draft.status = 'approved';
+            draft.isApproved = true;
+            await draft.save();
+
+            const result = await notificationService.sendEmail(vipEmail, subject, `<p>${body}</p>`)
+                .catch(() => ({ success: false }));
+            sent = result.success ? 1 : 0;
+            failed = result.success ? 0 : 1;
+        } else if (chainUsed === 'last_minute_push') {
+            const users = await User.find({
+                $or: [
+                    { waitlistEvents: eventId },
+                    { visitedEvents: eventId },
+                    { interestedEvents: eventId }
+                ]
+            });
+
+            const smsCandidates = users.filter(u => u.phone);
+            const pushCandidates = users.filter(u => u.pushSubscription);
+
+            if (smsCandidates.length === 0 && pushCandidates.length === 0) {
+                console.log(`[Approve] ${chainUsed} — sin destinatarios SMS/push`);
+            }
+
+            draft.status = 'approved';
+            draft.isApproved = true;
+            await draft.save();
+
+            const [smsResults, pushResult] = await Promise.all([
+                Promise.allSettled(
+                    smsCandidates.map(u => notificationService.sendSMS(u.phone, body))
+                ),
+                pushCandidates.length
+                    ? notificationService.sendPush(pushCandidates.map(u => u.pushSubscription), body)
+                          .catch(() => ({ success: false }))
+                    : Promise.resolve({ success: true })
+            ]);
+
+            const smsSent = smsResults.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+            sent = smsSent + (pushResult.success ? pushCandidates.length : 0);
+            failed = (smsResults.length - smsSent) + (pushResult.success ? 0 : pushCandidates.length);
+        } else if (chainUsed === 'age_facebook_campaign') {
+            const imageUrl = metadata?.imageUrl || null;
+            const promoCode = metadata?.promoCode;
+
+            draft.status = 'approved';
+            draft.isApproved = true;
+            await draft.save();
+
+            // Publicar el post en Facebook ahora que el usuario lo aprobó
+            const fbResult = await notificationService.createFacebookPost(body, imageUrl)
+                .catch(() => ({ success: false }));
+            sent = fbResult?.success !== false ? 1 : 0;
+            failed = fbResult?.success !== false ? 0 : 1;
+
+            // Notificar a usuarios interesados con el código promo
+            if (promoCode) {
+                const interesados = await User.find({ interestedEvents: eventId }).limit(10);
+                await Promise.allSettled(
+                    interesados.filter(u => u.email).map(u =>
+                        notificationService.sendEmail(
+                            u.email,
+                            `Novedad en nuestro Facebook · Evento ${eventId}`,
+                            `<p>¡Acabamos de publicar algo especial! Además tienes un código exclusivo: <b>${promoCode}</b></p>`
+                        )
+                    )
+                );
+            }
+        } else {
+            return res.status(400).json({ error: `Aprobación no soportada para la cadena '${chainUsed}'.` });
+        }
+
+        console.log(`[Approve] ${chainUsed} — enviados: ${sent}, fallidos: ${failed}`);
+        res.status(200).json({ sent, failed, chain: chainUsed });
+    } catch (error) {
+        console.error('[POST /drafts/:id/approve] Error:', error);
+        res.status(500).json({ error: error.message || "Error al aprobar el borrador" });
     }
 });
 

@@ -1,25 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronRight, Mail, MessageSquare, Bell, Share2, Loader2 } from "lucide-react";
 
 const opcionesTono = [
-  { valor: "urgente", label: "Urgente", desc: "Crea sentido de urgencia para actuar rapido" },
-  { valor: "amigable", label: "Amigable", desc: "Tono casual y cercano para conectar" },
-  { valor: "profesional", label: "Profesional", desc: "Formal y directo, ideal para B2B" },
-  { valor: "divertido", label: "Divertido", desc: "Humor y energia para eventos sociales" },
+  { valor: "urgente",      label: "Urgente",      desc: "Crea sentido de urgencia para actuar rapido" },
+  { valor: "amigable",     label: "Amigable",      desc: "Tono casual y cercano para conectar" },
+  { valor: "profesional",  label: "Profesional",   desc: "Formal y directo, ideal para B2B" },
+  { valor: "divertido",    label: "Divertido",     desc: "Humor y energia para eventos sociales" },
 ];
 
 const opcionesIdioma = [
-  { valor: "es", label: "Espanol" },
+  { valor: "es", label: "Español" },
   { valor: "en", label: "English" },
-  { valor: "pt", label: "Portugues" },
-];
-
-const opcionesCanal = [
-  { valor: "email", label: "Email" },
-  { valor: "sms", label: "SMS" },
-  { valor: "push", label: "Push Notification" },
+  { valor: "pt", label: "Português" },
 ];
 
 const opcionesExtension = [
@@ -28,81 +22,81 @@ const opcionesExtension = [
   { valor: "largo", label: "Largo" },
 ];
 
-// mensajes de ejemplo segun el tono
-const mensajesEjemplo = {
-  urgente:
-    "Ultima oportunidad! Las entradas para Comedy Night Live se agotan. No te quedes sin la tuya.\n\nQuedan pocas entradas disponibles. Asegura tu lugar ahora antes de que sea demasiado tarde.",
-  amigable:
-    "Hola! Te queriamos contar que Comedy Night Live ya esta a la vuelta de la esquina.\n\nVa a ser una noche increible llena de risas. Nos encantaria verte ahi!",
-  profesional:
-    "Estimado/a [Nombre],\n\nLe informamos que quedan plazas limitadas para Comedy Night Live. Le invitamos a asegurar su participacion.\n\nAtentamente, El equipo organizador.",
-  divertido:
-    "Preparado/a para reirte hasta que te duela la barriga?\n\nComedy Night Live promete carcajadas garantizadas. No seas el/la que se quede sin plan!",
+const CANAL_META = {
+  email:    { label: "Email",             Icon: Mail,           color: "text-blue-600",   bg: "bg-blue-50",   border: "border-blue-100",   hint: "Genera asunto + cuerpo del email" },
+  sms:      { label: "SMS",               Icon: MessageSquare,  color: "text-green-600",  bg: "bg-green-50",  border: "border-green-100",  hint: "Máximo 160 caracteres · Sin asunto" },
+  push:     { label: "Push Notification", Icon: Bell,           color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100", hint: "Título (50 ch) + mensaje (100 ch)" },
+  facebook: { label: "Facebook / Instagram", Icon: Share2,      color: "text-sky-600",    bg: "bg-sky-50",    border: "border-sky-100",    hint: "Incluye hashtags relevantes · Sin asunto" },
 };
 
-
-export default function TagsPanel({ onGenerar }) {
+export default function TagsPanel({ canal = "email", onGenerar }) {
   const [tono, setTono] = useState("urgente");
   const [idioma, setIdioma] = useState("es");
-  const [canal, setCanal] = useState("email");
   const [extension, setExtension] = useState("medio");
-  const [seccionesAbiertas, setSeccionesAbiertas] = useState(["tono"]);
+  const [generando, setGenerando] = useState(false);
+  const [error, setError] = useState(null);
+  const [abiertas, setAbiertas] = useState(["tono"]);
 
-  function toggleSeccion(nombre) {
-    let estaAbierta = seccionesAbiertas.includes(nombre);
+  const meta = CANAL_META[canal] ?? CANAL_META.email;
+  const mostrarExtension = canal !== "sms" && canal !== "push";
 
-    if (estaAbierta) {
-      // la quitamos de la lista
-      let nuevaLista = seccionesAbiertas.filter(function (s) {
-        return s !== nombre;
-      });
-      setSeccionesAbiertas(nuevaLista);
-    } else {
-      // la anadimos
-      setSeccionesAbiertas([...seccionesAbiertas, nombre]);
-    }
+  function toggle(nombre) {
+    setAbiertas(prev =>
+      prev.includes(nombre) ? prev.filter(s => s !== nombre) : [...prev, nombre]
+    );
   }
 
-  function generar() {
-    let mensaje = mensajesEjemplo[tono];
-    if (!mensaje) {
-      mensaje = mensajesEjemplo.urgente;
+  async function generar() {
+    setGenerando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canal, tono, idioma, extension, eventoNombre: "Comedy Night Live" }),
+      });
+
+      if (!res.ok) throw new Error("Error del servidor");
+      const { asunto, cuerpo } = await res.json();
+      onGenerar(asunto, cuerpo);
+    } catch {
+      setError("No se pudo generar. Inténtalo de nuevo.");
+    } finally {
+      setGenerando(false);
     }
-    onGenerar(mensaje);
   }
 
   return (
     <div className="space-y-1">
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border mb-3 ${meta.bg} ${meta.border}`}>
+        <meta.Icon size={14} className={meta.color} />
+        <div className="min-w-0">
+          <p className={`text-xs font-semibold ${meta.color}`}>{meta.label}</p>
+          <p className="text-[11px] text-gray-400 leading-tight">{meta.hint}</p>
+        </div>
+      </div>
+
       <button
         onClick={generar}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand text-white rounded-md text-sm font-medium hover:bg-orange-600 transition-colors mb-4"
+        disabled={generando}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand text-white rounded-md text-sm font-medium hover:bg-orange-600 disabled:opacity-60 transition-colors mb-4"
       >
-        <Sparkles size={16} />
-        Generar
+        {generando ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+        {generando ? "Generando..." : "Generar con IA"}
       </button>
 
-      {/* tono (con descripcion en cada opcion) */}
-      <Seccion
-        titulo="Tono"
-        abierta={seccionesAbiertas.includes("tono")}
-        onToggle={function () { toggleSeccion("tono"); }}
-      >
-        <div className="space-y-2">
-          {opcionesTono.map(function (opt) {
-            let claseLabel = "border-gray-200 hover:border-gray-300";
-            if (tono === opt.valor) {
-              claseLabel = "border-brand bg-brand-light";
-            }
+      {error && <p className="text-xs text-red-500 mb-3 px-1">{error}</p>}
 
+      <Seccion titulo="Tono" abierta={abiertas.includes("tono")} onToggle={() => toggle("tono")}>
+        <div className="space-y-2">
+          {opcionesTono.map(opt => {
+            const activo = tono === opt.valor;
             return (
-              <label key={opt.valor} className={"flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors " + claseLabel}>
-                <input
-                  type="radio"
-                  name="tono"
-                  checked={tono === opt.valor}
-                  onChange={function () { setTono(opt.valor); }}
-                  className="mt-0.5 accent-brand"
-                />
+              <label
+                key={opt.valor}
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${activo ? "border-brand bg-brand-light" : "border-gray-200 hover:border-gray-300"}`}
+              >
+                <input type="radio" name="tono" checked={activo} onChange={() => setTono(opt.valor)} className="mt-0.5 accent-brand" />
                 <div>
                   <span className="text-sm font-medium text-gray-900">{opt.label}</span>
                   <p className="text-xs text-gray-500">{opt.desc}</p>
@@ -113,83 +107,45 @@ export default function TagsPanel({ onGenerar }) {
         </div>
       </Seccion>
 
-      {/* idioma */}
-      <Seccion
-        titulo="Idioma"
-        abierta={seccionesAbiertas.includes("idioma")}
-        onToggle={function () { toggleSeccion("idioma"); }}
-      >
+      <Seccion titulo="Idioma" abierta={abiertas.includes("idioma")} onToggle={() => toggle("idioma")}>
         <RadioSimple opciones={opcionesIdioma} nombre="idioma" valor={idioma} onChange={setIdioma} />
       </Seccion>
 
-      {/* canal */}
-      <Seccion
-        titulo="Canal"
-        abierta={seccionesAbiertas.includes("canal")}
-        onToggle={function () { toggleSeccion("canal"); }}
-      >
-        <RadioSimple opciones={opcionesCanal} nombre="canal" valor={canal} onChange={setCanal} />
-      </Seccion>
-
-      {/* extension */}
-      <Seccion
-        titulo="Extension"
-        abierta={seccionesAbiertas.includes("extension")}
-        onToggle={function () { toggleSeccion("extension"); }}
-      >
-        <RadioSimple opciones={opcionesExtension} nombre="extension" valor={extension} onChange={setExtension} />
-      </Seccion>
+      {mostrarExtension && (
+        <Seccion titulo="Extensión" abierta={abiertas.includes("extension")} onToggle={() => toggle("extension")}>
+          <RadioSimple opciones={opcionesExtension} nombre="extension" valor={extension} onChange={setExtension} />
+        </Seccion>
+      )}
     </div>
   );
 }
 
-
-// componente para las secciones que se abren y cierran
 function Seccion({ titulo, abierta, onToggle, children }) {
-  let icono;
-  if (abierta) {
-    icono = <ChevronDown size={16} />;
-  } else {
-    icono = <ChevronRight size={16} />;
-  }
-
   return (
     <div className="border-b border-gray-100 last:border-b-0">
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-2 py-3 text-sm font-medium text-gray-700 hover:text-brand transition-colors"
       >
-        {icono}
+        {abierta ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         {titulo}
       </button>
-
-      {abierta && (
-        <div className="pb-3">{children}</div>
-      )}
+      {abierta && <div className="pb-3">{children}</div>}
     </div>
   );
 }
 
-
-// radios simples para idioma, canal y extension
 function RadioSimple({ opciones, nombre, valor, onChange }) {
   return (
     <div className="space-y-2">
-      {opciones.map(function (opt) {
-        let claseLabel = "border-gray-200 hover:border-gray-300";
-        if (valor === opt.valor) {
-          claseLabel = "border-brand bg-brand-light";
-        }
-
+      {opciones.map(opt => {
+        const activo = valor === opt.valor;
         return (
-          <label key={opt.valor} className={"flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors " + claseLabel}>
-            <input
-              type="radio"
-              name={nombre}
-              checked={valor === opt.valor}
-              onChange={function () { onChange(opt.valor); }}
-              className="accent-brand"
-            />
+          <label
+            key={opt.valor}
+            className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${activo ? "border-brand bg-brand-light" : "border-gray-200 hover:border-gray-300"}`}
+          >
+            <input type="radio" name={nombre} checked={activo} onChange={() => onChange(opt.valor)} className="accent-brand" />
             <span className="text-sm text-gray-700">{opt.label}</span>
           </label>
         );

@@ -1,32 +1,27 @@
 import { Attendee } from "../../models/attendee.js";
 import { User } from "../../models/user.js";
-import { notificationService } from "../../services/notifications.js";
 import { eventbriteService } from "../../services/eventbrite.js";
+import { Draft } from "../../models/draft.js";
 import { llm } from "../model.js";
 import { PromptTemplate } from "@langchain/core/prompts";
 
 export async function runAgeFacebookChain(eventId) {
-    console.log(`\n[Facebook] Iniciando campana para evento ${eventId}`);
+    console.log(`\n[Facebook] Iniciando cadena para evento ${eventId}`);
 
-    // Calcular media de edad con aggregate
+    // Calcular media de edad
     const stats = await Attendee.aggregate([
-        { $match: { eventId: eventId } },
+        { $match: { eventId } },
         { $group: { _id: null, avgAge: { $avg: "$age" }, topCity: { $first: "$city" } } }
     ]);
     const avgAge = Math.round(stats[0]?.avgAge || 28);
     const topCity = stats[0]?.topCity || "Madrid";
 
-    // Decidir canal segun edad: >=30 Facebook, <30 Instagram
     const channel = 'Facebook';
-    if (channel !== 'Facebook') {
-        console.log(`[Facebook] Audiencia joven (${avgAge} anios), saltando FB`);
-        return { status: 'skipped', reason: 'young_audience' };
-    }
 
-    // Obtener metricas del evento
-    const metrics = await eventbriteService.getEventMetrics(eventId);
+    // Obtener métricas del evento
+    await eventbriteService.getEventMetrics(eventId);
 
-    // Pool de imagenes para variar el post
+    // Pool de imágenes para el post
     const eventPhotos = [
         "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
         "https://images.unsplash.com/photo-1492684223066-81342ee5ff30",
@@ -35,35 +30,32 @@ export async function runAgeFacebookChain(eventId) {
     ];
     const selectedPhoto = eventPhotos[Math.floor(Math.random() * eventPhotos.length)];
 
-    // IA redacta el copy del post
-    console.log(`[Facebook] Generando copy para audiencia de ${avgAge} anios`);
+    // IA redacta el copy
+    console.log(`[Facebook] Generando copy para audiencia de ${avgAge} años en ${topCity}`);
     const prompt = PromptTemplate.fromTemplate(`
-        Eres CM de eventos. Crea un post de {channel} para el evento ID {eventId}.
-        Audiencia: {avgAge} años en {city}. 
-        Usa 2 emojis y 2 hashtags. Máximo 280 caracteres.
+        Eres Community Manager de eventos. Crea un post de {channel} para el evento ID {eventId}.
+        Audiencia media: {avgAge} años, ciudad principal: {city}.
+        Requisitos: usa entre 2 y 4 emojis, incluye exactamente 3 hashtags relevantes al final,
+        máximo 280 caracteres, tono cercano y con llamada a la acción.
     `);
-    const response = await prompt.pipe(llm).invoke({
-        channel, eventId, avgAge, city: topCity
+    const response = await prompt.pipe(llm).invoke({ channel, eventId, avgAge, city: topCity });
+    const postContent = response.content.trim();
+
+    // Código de descuento reservado para cuando se apruebe
+    const promoCode = `FB-${Date.now().toString().slice(-4)}`;
+
+    // Guardar como borrador para revisión — NO publicar todavía
+    console.log('[Facebook] Guardando borrador para revisión humana...');
+    const draft = await Draft.create({
+        eventId,
+        chainUsed: 'age_facebook_campaign',
+        subject: `Post Facebook · Evento ${eventId}`,
+        body: postContent,
+        status: 'pending',
+        isApproved: false,
+        metadata: { channel, imageUrl: selectedPhoto, promoCode, avgAge, topCity }
     });
 
-    // Publicar en Facebook
-    console.log('[Facebook] Publicando post con imagen...');
-    await notificationService.createFacebookPost(response.content, selectedPhoto);
-
-    // Crear codigo de descuento
-    const promoCode = `FBVISUAL-${Date.now().toString().slice(-4)}`;
-    await eventbriteService.createDiscount(eventId, promoCode, "15.00");
-
-    // Notificar a usuarios interesados
-    const users = await User.find({ interestedEvents: eventId }).limit(3);
-    for (const user of users) {
-        await notificationService.sendEmail(
-            user.email,
-            "Novedades en nuestro Facebook",
-            `Te hemos dejado un regalo visual y un código: <b>${promoCode}</b>`
-        );
-    }
-
-    console.log('[Facebook] Cadena completada');
-    return { status: 'posted', photo: selectedPhoto, promoCode };
+    console.log(`[Facebook] Borrador listo: ${draft._id}`);
+    return draft;
 }
