@@ -2,10 +2,19 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { Attendee } from "../../models/attendee.js";
 import { Draft } from "../../models/draft.js";
 import { llm } from "../model.js";
-import { notificationService } from "../../services/notifications.js";
 
+/**
+ * Genera un borrador de encuesta post-evento.
+ *
+ * NO envía emails ni marca asistentes. Su único trabajo es:
+ *   - pedirle al LLM un `emailIntro` personalizado + las `questions`
+ *   - guardar el borrador en MongoDB con status: 'pending'
+ *
+ *
+ *
+ */
 export async function runPostEventSurveyChain(eventId, userPrompt = '') {
-    console.log(`\n[PostSurvey] Generando encuesta post-evento para ${eventId}`);
+    console.log(`\n[PostSurvey] Generando borrador de encuesta post-evento para ${eventId}`);
 
     // 1. CONTEXTO DE BD: asistentes que hicieron check-in y no han respondido encuesta
     const checkedIn = await Attendee.find({
@@ -25,84 +34,67 @@ export async function runPostEventSurveyChain(eventId, userPrompt = '') {
     const eventName = `Evento ${eventId}`;
     const eventType = 'general';
 
-    // 2. LANGCHAIN: generar preguntas adaptadas al tipo de evento
+    // 2. LANGCHAIN: pedir al LLM intro de email + 3 preguntas
     const prompt = PromptTemplate.fromTemplate(`
-        Crea una encuesta post-evento de exactamente 3 preguntas para:
-        Evento: {eventName}. Tipo: {eventType}.
+        Eres un asistente que prepara encuestas post-evento y sus emails de invitación.
 
-        Las 3 preguntas deben cubrir:
-        - Satisfacción general (tipo: rating del 1 al 5)
-        - Aspecto favorito del evento (tipo: text)
-        - Qué mejorarías para la próxima vez (tipo: text)
+        Evento: {eventName}
+        Tipo: {eventType}
+        Instrucciones extra del organizador: {extraInstructions}
 
-        {extraInstructions}
+        Devuelve ESTRICTAMENTE un JSON válido con este formato exacto (sin texto alrededor, sin markdown):
+        {{
+          "emailIntro": "2-3 frases cálidas y breves para introducir el email que invita a responder la encuesta. Habla del evento, agradece la asistencia e invita a dar feedback. NO incluyas saludo (Hola/Querido) — eso se añade aparte. NO incluyas links ni listas de preguntas — solo el párrafo de intro.",
+          "questions": [
+            {{"question": "...", "type": "rating"}},
+            {{"question": "...", "type": "text"}}
+          ]
+        }}
 
-        Responde ESTRICTAMENTE en JSON válido con este formato exacto:
-        {{"questions": [{{"question": "...", "type": "rating"}}, {{"question": "...", "type": "text"}}, {{"question": "...", "type": "text"}}]}}
+        Reglas para "questions":
+        - Por defecto, genera 3 preguntas. Si las instrucciones del organizador piden explicitamente otro numero (por ejemplo "5 preguntas", "10 preguntas"), respeta ese numero exacto.
+        - Tipos válidos: "rating" (escala 1 al 5) o "text" (respuesta libre). NO uses otros tipos aunque el organizador los mencione.
+        - Si el organizador pide "tipos variados", combina rating y text alternando.
+        - Incluye al menos una pregunta de satisfaccion general de tipo "rating", a menos que el organizador diga explicitamente lo contrario.
+        - Adapta el tono y el texto al tipo de evento y a las instrucciones del organizador.
     `);
 
-    console.log('[PostSurvey] LLM generando preguntas de encuesta...');
+    console.log('[PostSurvey] LLM generando intro + preguntas...');
     const result = await prompt.pipe(llm).invoke({
         eventName,
         eventType,
-        extraInstructions: userPrompt ? `Instrucciones adicionales: ${userPrompt}` : ''
+        extraInstructions: userPrompt || '(ninguna)'
     });
 
-    let parsedContent = { questions: [] };
+    let parsedContent = { emailIntro: '', questions: [] };
     try {
         const cleanJson = result.content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsedContent = JSON.parse(cleanJson);
     } catch (e) {
-        console.log('[PostSurvey] Error parseando JSON, se usará estructura vacía');
+        console.log('[PostSurvey] Error parseando JSON del LLM, se usará estructura vacía');
     }
 
     console.log(`[PostSurvey] Preguntas generadas: ${parsedContent.questions.length}`);
 
-    // 3. GUARDAR borrador en MongoDB (para registro)
+    // 3. GUARDAR borrador en MongoDB como PENDIENTE
     const draft = await Draft.create({
         eventId,
         chainUsed: 'post_event_survey',
         subject: `Encuesta post-evento: ${eventName}`,
         body: JSON.stringify(parsedContent.questions),
         targetAudienceCount: audienceCount,
-        isApproved: true,
-        status: 'sent',
+        isApproved: false,
+        status: 'pending',
         metadata: {
             eventName,
             eventType,
-            questions: parsedContent.questions,
-            recipientEmails: checkedIn.map(a => a.email)
+            emailIntro: parsedContent.emailIntro || '',
+            questions: parsedContent.questions || [],
+            recipientEmails: checkedIn.map(a => a.email),
+            googleForm: null // se rellena al publicar
         }
     });
 
-    // 4. ENVIAR emails directamente a todos los asistentes
-    console.log(`[PostSurvey] Enviando encuesta a ${audienceCount} asistentes...`);
-
-    const questionsHtml = parsedContent.questions.map((q, i) =>
-        `<p><strong>${i + 1}. ${q.question}</strong> ${q.type === 'rating' ? '(del 1 al 5)' : ''}</p>`
-    ).join('');
-
-    await Promise.allSettled(
-        checkedIn.map(a =>
-            notificationService.sendEmail(
-                a.email,
-                `¿Qué te pareció ${eventName}? Cuéntanos (2 min)`,
-                `
-                <p>Hola ${a.name || a.email},</p>
-                <p>Gracias por asistir a <strong>${eventName}</strong>. Tu opinión nos ayuda a mejorar.</p>
-                ${questionsHtml}
-                <p>Responde a este email con tus respuestas.</p>
-                `
-            )
-        )
-    );
-
-    // 5. MARCAR asistentes como surveyAnswered
-    await Attendee.updateMany(
-        { _id: { $in: checkedIn.map(a => a._id) } },
-        { $set: { surveyAnswered: true } }
-    );
-
-    console.log(`[PostSurvey] Encuesta enviada a ${audienceCount} asistentes`);
+    console.log(`[PostSurvey] Borrador creado id=${draft._id} (pending, sin enviar)`);
     return draft;
 }
