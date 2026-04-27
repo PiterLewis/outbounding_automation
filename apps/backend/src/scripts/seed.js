@@ -74,9 +74,9 @@ async function seedDatabase() {
         console.log('[Seed] Insertando usuarios...');
 
         await User.insertMany([
-            { email: 'afernandz26@gmail.com', name: 'María', age: 28, city: 'Madrid', interestedEvents: ['EVT-999'] },
-            { email: 'juan.batta2005@gmail.com', name: 'Juan', age: 35, city: 'Barcelona', interestedEvents: ['EVT-999'] },
-            { email: 'gepetotallaveta@gmail.com', name: 'Lucía', age: 22, city: 'Valencia', interestedEvents: ['EVT-999'] }
+            { email: 'afernandz26@gmail.com',     name: 'María', age: 28, city: 'Madrid',    phone: '+34600000001', interestedEvents: ['EVT-999'], notifiedDiscount: ['EVT-999'] },
+            { email: 'juan.batta2005@gmail.com',   name: 'Juan',  age: 35, city: 'Barcelona', phone: '+34600000002', interestedEvents: ['EVT-999'], notifiedDiscount: ['EVT-999'] },
+            { email: 'gepetotallaveta@gmail.com',  name: 'Lucía', age: 22, city: 'Valencia',  phone: '+34600000003', interestedEvents: ['EVT-999'], notifiedDiscount: ['EVT-999'] }
         ]);
 
         console.log('[Seed] Insertando asistentes...');

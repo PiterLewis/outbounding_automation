@@ -14,14 +14,14 @@ const outboundingQueue = new Queue('outbounding', { connection });
 
 // Enviar prompt al sistema de IA
 router.post('/chat', async (req, res) => {
-    const { prompt, eventId, attendeeEmail} = req.body;
+    const { prompt, eventId, attendeeEmail, chainId } = req.body;
 
     if (!prompt || !eventId) {
         return res.status(400).json({ error: "Faltan datos: se requiere 'prompt' y 'eventId'" });
     }
 
     try {
-        const job = await outboundingQueue.add('agent_workflow', { prompt, eventId, attendeeEmail });
+        const job = await outboundingQueue.add('agent_workflow', { prompt, eventId, attendeeEmail, chainId });
         res.status(201).json({
             message: "La IA está analizando los datos y preparando la campaña...",
             jobId: job.id,
@@ -334,6 +334,75 @@ router.post('/drafts/:id/approve', async (req, res) => {
     } catch (error) {
         console.error('[POST /drafts/:id/approve] Error:', error);
         res.status(500).json({ error: error.message || "Error al aprobar el borrador" });
+    }
+});
+
+/**
+ * Envío directo sin pasar por el chatbot.
+ * Crea un borrador y lo envía inmediatamente al canal seleccionado.
+ * Destinatarios: todos los usuarios con interestedEvents o notifiedDiscount = eventId.
+ */
+router.post('/send-direct', async (req, res) => {
+    try {
+        const { canal, subject, body, eventId = 'EVT-999', imageUrl } = req.body;
+
+        if (!body?.trim()) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
+
+        let sent = 0, failed = 0;
+
+        if (canal === 'email') {
+            const recipients = await User.find({
+                $or: [{ interestedEvents: eventId }, { notifiedDiscount: eventId }],
+                email: { $exists: true, $ne: '' },
+            });
+            const results = await Promise.allSettled(
+                recipients.map(u => notificationService.sendEmail(u.email, subject || 'Mensaje de tu evento', `<p style="white-space:pre-wrap">${body}</p>`))
+            );
+            sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+            failed = results.length - sent;
+
+        } else if (canal === 'sms') {
+            const recipients = await User.find({ interestedEvents: eventId, phone: { $exists: true, $ne: '' } });
+            const results = await Promise.allSettled(
+                recipients.map(u => notificationService.sendSMS(u.phone, body))
+            );
+            sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+            failed = results.length - sent;
+
+        } else if (canal === 'push') {
+            const recipients = await User.find({ interestedEvents: eventId, pushSubscription: { $exists: true, $ne: '' } });
+            if (recipients.length > 0) {
+                const pushResult = await notificationService.sendPush(recipients.map(u => u.pushSubscription), body)
+                    .catch(() => ({ success: false }));
+                sent = pushResult.success ? recipients.length : 0;
+                failed = pushResult.success ? 0 : recipients.length;
+            }
+
+        } else if (canal === 'facebook') {
+            const result = await notificationService.createFacebookPost(body, imageUrl || null)
+                .catch(() => ({ success: false }));
+            sent = result.success ? 1 : 0;
+            failed = result.success ? 0 : 1;
+
+        } else {
+            return res.status(400).json({ error: `Canal desconocido: ${canal}` });
+        }
+
+        const draft = await Draft.create({
+            eventId,
+            chainUsed: `direct_${canal}`,
+            subject: subject || null,
+            body,
+            targetAudienceCount: sent + failed,
+            isApproved: true,
+            status: 'approved',
+        });
+
+        console.log(`[SendDirect] ${canal} — enviados: ${sent}, fallidos: ${failed}`);
+        res.status(200).json({ sent, failed, draftId: draft._id });
+    } catch (error) {
+        console.error('[POST /send-direct] Error:', error);
+        res.status(500).json({ error: error.message || "Error al enviar" });
     }
 });
 

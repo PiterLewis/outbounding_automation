@@ -18,6 +18,10 @@ export const notificationService = {
                 subject: subject,
                 html: htmlContent
             });
+            if (data.error) {
+                console.error(`[Email] Error de Resend: ${data.error.message}`);
+                return { success: false, error: data.error };
+            }
             return { success: true, data };
         } catch (error) {
             console.error('[Email] Error:', error);

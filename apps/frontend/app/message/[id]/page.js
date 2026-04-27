@@ -239,23 +239,34 @@ export default function MessageEditor() {
   }
 
   async function manejarAprobacion() {
-    if (!currentDraftId) {
-      setErrorAprobacion("Genera un mensaje desde el Chat y pulsa 'Editar' primero.");
+    if (!cuerpo.trim()) {
+      setErrorAprobacion("Escribe el mensaje antes de enviar.");
       setTimeout(() => setErrorAprobacion(null), 4000);
       return;
     }
     setEnviando(true);
     setErrorAprobacion(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/drafts/${currentDraftId}/approve`, { method: "POST" });
-      if (res.ok) {
-        setAprobado(true);
+      if (currentDraftId) {
+        const res = await fetch(`${BACKEND_URL}/api/drafts/${currentDraftId}/approve`, { method: "POST" });
+        if (!res.ok) throw new Error("Error al aprobar el borrador.");
       } else {
-        setErrorAprobacion("El envío automático estará disponible próximamente.");
-        setTimeout(() => setErrorAprobacion(null), 4000);
+        const payload = { canal, body: cuerpo, eventId: "EVT-999" };
+        if (asunto) payload.subject = asunto;
+        if (facebookImage) payload.imageUrl = facebookImage;
+        const res = await fetch(`${BACKEND_URL}/api/send-direct`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Error al enviar.");
+        }
       }
-    } catch {
-      setErrorAprobacion("Error de conexión con el servidor.");
+      setAprobado(true);
+    } catch (err) {
+      setErrorAprobacion(err.message || "Error de conexión con el servidor.");
       setTimeout(() => setErrorAprobacion(null), 4000);
     } finally {
       setEnviando(false);
