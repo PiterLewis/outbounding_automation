@@ -17,13 +17,19 @@ const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', 
 
 export const outboundWorker = new Worker('outbounding', async (job) => {
     console.log(`\n[Worker] Iniciando job ${job.id}`);
-    const { eventId, prompt } = job.data;
+    const { eventId, prompt, attendeeEmail, chainId } = job.data;
 
-    // Paso 1: el router decide la cadena
-    console.log('[Worker] Consultando router IA...');
-    const chainDecision = await aiRouter.invoke({ action: prompt });
-    const cleanDecision = chainDecision.trim();
-    console.log(`[Worker] Decision: ${cleanDecision}`);
+    // Paso 1: usar chainId si viene del frontend; si no, el router IA decide
+    let cleanDecision;
+    if (chainId) {
+        cleanDecision = chainId;
+        console.log(`[Worker] Usando chain del frontend: ${cleanDecision}`);
+    } else {
+        console.log('[Worker] Consultando router IA...');
+        const chainDecision = await aiRouter.invoke({ action: prompt });
+        cleanDecision = chainDecision.trim();
+        console.log(`[Worker] Decision IA: ${cleanDecision}`);
+    }
 
     // Paso 2: ejecutar la cadena correspondiente
     let resultDraft;
@@ -50,7 +56,7 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
             break;
 
         case 'checkin_welcome':
-            resultDraft = await runCheckinWelcomeChain(eventId, job.data.attendeeEmail, prompt);
+            resultDraft = await runCheckinWelcomeChain(eventId, attendeeEmail, prompt);
             break;
 
         default:
@@ -58,15 +64,25 @@ export const outboundWorker = new Worker('outbounding', async (job) => {
             break;
     }
 
+    // checkin_welcome envía el push directamente (no crea Draft)
+    if (cleanDecision === 'checkin_welcome') {
+        return {
+            draftId: null,
+            chain: cleanDecision,
+            status: resultDraft?.status || 'sent',
+            message: resultDraft?.message || null,
+            isVIP: resultDraft?.isVIP || false,
+            pushSent: resultDraft?.pushSent !== false,
+        };
+    }
+
     return {
-    draftId: resultDraft?._id || resultDraft?.id || null,
-    chain: cleanDecision,
-    status: 'pending_approval',
-    // Si resultDraft es solo un ID, aquí fallará. 
-    // Asegúrate de que resultDraft sea el objeto completo de la DB.
-    subject: resultDraft?.subject || null,
-    body: resultDraft?.body || null
-};
+        draftId: resultDraft?._id || resultDraft?.id || null,
+        chain: cleanDecision,
+        status: 'pending_approval',
+        subject: resultDraft?.subject || null,
+        body: resultDraft?.body || null,
+    };
 }, { connection });
 
 outboundWorker.on('completed', (job, returnvalue) => {

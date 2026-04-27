@@ -788,6 +788,29 @@ export default function ChatPanel({ onAplicar }) {
 }
 
 function renderResultadoCadena(resultado, cadena, onAplicar, aprobarDraft, rechazarDraft, aprobacionError, onRefinar) {
+  if (cadena === "checkin_welcome") {
+    if (resultado?.status === "skipped") {
+      return (
+        <p className="flex items-start gap-1.5 text-sm text-gray-600">
+          <Info size={14} className="shrink-0 mt-0.5 text-blue-400" />
+          Asistente no encontrado en la base de datos.
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+          <CheckCircle size={14} /> Push de bienvenida enviada{resultado?.isVIP ? " · VIP 👑" : ""}
+        </p>
+        {resultado?.message && (
+          <div className="rounded-lg px-3 py-2.5 border text-sm text-gray-700 bg-emerald-50 border-emerald-200">
+            {resultado.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (cadena === "post_event_survey") {
     if (resultado?.status === "no_attendees") {
       return <p className="text-sm text-gray-500 flex items-center gap-1.5"><Info size={14} className="text-blue-400 shrink-0" /> No hay asistentes pendientes de encuestar para este evento.</p>;
