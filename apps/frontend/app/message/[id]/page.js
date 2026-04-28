@@ -249,11 +249,14 @@ export default function MessageEditor() {
     try {
       if (currentDraftId) {
         const res = await fetch(`${BACKEND_URL}/api/drafts/${currentDraftId}/approve`, { method: "POST" });
-        if (!res.ok) throw new Error("Error al aprobar el borrador.");
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Error al aprobar el borrador.");
+        }
       } else {
         const payload = { canal, body: cuerpo, eventId: "EVT-999" };
         if (asunto) payload.subject = asunto;
-        if (facebookImage) payload.imageUrl = facebookImage;
+        if (facebookImage?.trim()) payload.imageUrl = facebookImage.trim();
         const res = await fetch(`${BACKEND_URL}/api/send-direct`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

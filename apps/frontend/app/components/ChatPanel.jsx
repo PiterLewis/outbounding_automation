@@ -233,7 +233,7 @@ export default function ChatPanel({ onAplicar }) {
   }
 
   async function esperarResultado(jobId) {
-    for (let intentos = 0; intentos < 30; intentos++) {
+    for (let intentos = 0; intentos < 45; intentos++) {
       await new Promise(r => setTimeout(r, 2000));
       if (!montadoRef.current) return null;
       const res = await fetch(`${BACKEND_URL}/api/chat/status/${jobId}`);
@@ -436,11 +436,12 @@ export default function ChatPanel({ onAplicar }) {
           return id === draftId ? { ...m, resultado: { ...m.resultado, status: "approved" } } : m;
         }));
       } else {
+        const errData = await res.json().catch(() => ({}));
         setMensajes(prev => prev.map(m => {
           const id = m.resultado?.draftId || m.resultado?._id;
-          return id === draftId ? { ...m, aprobacionError: "El envío automático estará disponible próximamente." } : m;
+          return id === draftId ? { ...m, aprobacionError: errData.error || "Error al aprobar." } : m;
         }));
-        setTimeout(() => setMensajes(prev => prev.map(m => ({ ...m, aprobacionError: undefined }))), 4000);
+        setTimeout(() => setMensajes(prev => prev.map(m => ({ ...m, aprobacionError: undefined }))), 5000);
       }
     } catch {
       setMensajes(prev => prev.map(m => {

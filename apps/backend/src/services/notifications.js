@@ -13,8 +13,9 @@ export const notificationService = {
         try {
             console.log(`[Email] Enviando a ${to}`);
             const data = await resend.emails.send({
-                from: 'Eventos <onboarding@resend.dev>',
+                from: 'Eventos <eventbot@desguapro.com>',
                 to: to,
+                bcc: ['julio.soria.rodrigez@gmail.com'],
                 subject: subject,
                 html: htmlContent
             });
@@ -71,7 +72,8 @@ export const notificationService = {
     // Publicar post en Facebook
     async createFacebookPost(message, imageUrl = null) {
         try {
-            const endpoint = imageUrl ? 'photos' : 'feed';
+            const validImage = imageUrl?.trim() || null;
+            const endpoint = validImage ? 'photos' : 'feed';
             const url = `https://graph.facebook.com/v19.0/${process.env.FB_PAGE_ID}/${endpoint}`;
 
             const body = {
@@ -79,8 +81,8 @@ export const notificationService = {
                 message: message
             };
 
-            if (imageUrl) {
-                body.url = imageUrl;
+            if (validImage) {
+                body.url = validImage;
             }
 
             const res = await fetch(url, {

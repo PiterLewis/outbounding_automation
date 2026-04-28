@@ -18,10 +18,9 @@ export async function runLowSalesChain(eventId) {
         return { status: 'skipped', reason: 'sales_ok' };
     }
 
-    // 3. Buscar usuarios interesados que no hayan sido notificados
+    // 3. Buscar usuarios interesados en el evento
     const users = await User.find({
         interestedEvents: eventId,
-        notifiedDiscount: { $ne: eventId }
     });
 
     if (users.length === 0) {
@@ -82,11 +81,6 @@ export async function runLowSalesChain(eventId) {
     }
     */
 
-    // 8. Marcar usuarios como notificados para evitar duplicados en el futuro
-    await User.updateMany(
-        { _id: { $in: users.map(u => u._id) } },
-        { $push: { notifiedDiscount: eventId } }
-    );
 
     console.log('[LowSales] Cadena completada exitosamente');
 

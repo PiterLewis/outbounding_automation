@@ -1,13 +1,7 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { User } from "../../models/user.js";
 import { Draft } from "../../models/draft.js";
-
-const llm = new ChatOpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    modelName: "google/gemini-2.0-flash-001",
-    configuration: { baseURL: "https://openrouter.ai/api/v1" }
-});
+import { llm } from "../model.js";
 
 export async function runLastMinuteChain(eventId) {
     console.log(`\n[LastMinute] Iniciando aviso de ultima hora para ${eventId}`);

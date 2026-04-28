@@ -35,7 +35,7 @@ export default function TagsPanel({ canal = "email", onGenerar }) {
   const [extension, setExtension] = useState("medio");
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState(null);
-  const [abiertas, setAbiertas] = useState(["tono"]);
+  const [abiertas, setAbiertas] = useState(["tono", "extension"]);
 
   const meta = CANAL_META[canal] ?? CANAL_META.email;
   const mostrarExtension = canal !== "sms" && canal !== "push";

@@ -40,6 +40,7 @@ export default function Borradores() {
   );
   const [aprobandoId, setAprobandoId] = useState(null);
   const [errorAprobacionId, setErrorAprobacionId] = useState(null);
+  const [errorAprobacionMsg, setErrorAprobacionMsg] = useState("");
 
   useEffect(() => {
     async function refreshRemote() {
@@ -87,7 +88,6 @@ export default function Borradores() {
     try {
       const res = await fetch(`${API_URL}/api/drafts/${id}/approve`, { method: "POST" });
       if (res.ok) {
-        // Re-fetch desde el servidor para tener el estado real tras el envío
         let nuevoStatus = "approved";
         try {
           const draftRes = await fetch(`${API_URL}/api/drafts/${id}`);
@@ -98,12 +98,15 @@ export default function Borradores() {
         } catch { /* usar "approved" por defecto */ }
         persist(borradores.map(b => b.id === id ? { ...b, status: nuevoStatus } : b));
       } else {
+        const errData = await res.json().catch(() => ({}));
+        setErrorAprobacionMsg(errData.error || "Error al aprobar.");
         setErrorAprobacionId(id);
-        setTimeout(() => setErrorAprobacionId(null), 4000);
+        setTimeout(() => { setErrorAprobacionId(null); setErrorAprobacionMsg(""); }, 5000);
       }
     } catch {
+      setErrorAprobacionMsg("Error de conexión con el servidor.");
       setErrorAprobacionId(id);
-      setTimeout(() => setErrorAprobacionId(null), 4000);
+      setTimeout(() => { setErrorAprobacionId(null); setErrorAprobacionMsg(""); }, 5000);
     } finally {
       setAprobandoId(null);
     }
@@ -182,7 +185,7 @@ export default function Borradores() {
                       {aprobandoId === b.id ? "Aprobando..." : "Aprobar"}
                     </button>
                     {errorAprobacionId === b.id && (
-                      <p className="w-full text-xs text-amber-600 mt-1">El envío automático estará disponible próximamente.</p>
+                      <p className="w-full text-xs text-amber-600 mt-1">{errorAprobacionMsg}</p>
                     )}
                     <button
                       onClick={() => rechazar(b.id)}

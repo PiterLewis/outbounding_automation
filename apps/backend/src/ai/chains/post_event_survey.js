@@ -20,16 +20,10 @@ export async function runPostEventSurveyChain(eventId, userPrompt = '') {
     const checkedIn = await Attendee.find({
         eventId: eventId,
         checkedIn: true,
-        surveyAnswered: { $ne: true }
     });
 
     const audienceCount = checkedIn.length;
-    console.log(`[PostSurvey] Asistentes pendientes de encuesta: ${audienceCount}`);
-
-    if (audienceCount === 0) {
-        console.log('[PostSurvey] No hay asistentes pendientes, abortando');
-        return { status: 'skipped', reason: 'no_attendees' };
-    }
+    console.log(`[PostSurvey] Asistentes con check-in: ${audienceCount}`);
 
     const eventName = `Evento ${eventId}`;
     const eventType = 'general';

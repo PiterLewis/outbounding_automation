@@ -30,27 +30,38 @@ CRÍTICO: nunca pongas [ACCION:...] en mitad del texto. Solo al final, una vez. 
 
 Responde siempre en español.`;
 
+async function callGemini(messages) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GOOGLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash",
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+        temperature: 0.85,
+      }),
+    });
+    if (res.ok) return res;
+    const err = await res.text();
+    if (res.status === 503 && attempt < 4) {
+      await new Promise(r => setTimeout(r, attempt * 1000));
+      continue;
+    }
+    console.error("OpenRouter error:", res.status, err);
+    return res;
+  }
+}
+
 export async function POST(req) {
   const { messages } = await req.json();
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "Outbounding Automation",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.0-flash-001",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-      temperature: 0.85,
-    }),
-  });
+  const res = await callGemini(messages);
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("OpenRouter error:", res.status, err);
     return NextResponse.json({ error: "Error del servidor de IA", detail: err }, { status: 500 });
   }
 

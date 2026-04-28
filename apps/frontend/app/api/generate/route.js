@@ -47,16 +47,14 @@ Reglas:
 - Responde SOLO con el JSON pedido, sin texto extra, sin bloques de código, sin markdown.
 - El JSON debe ser parseable directamente.`;
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${process.env.GOOGLE_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "Outbounding Automation",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.0-flash-001",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8,
     }),

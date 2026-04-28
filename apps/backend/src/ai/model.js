@@ -1,8 +1,10 @@
 import { ChatOpenAI } from "@langchain/openai";
 
 export const llm = new ChatOpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    modelName: "google/gemini-2.0-flash-001",
-    configuration: { baseURL: "https://openrouter.ai/api/v1" },
-    temperature: 0
+    apiKey: process.env.GOOGLE_API_KEY,
+    modelName: "gemini-2.5-flash",
+    configuration: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" },
+    temperature: 0,
+    timeout: 50000,
+    maxRetries: 0,
 });
